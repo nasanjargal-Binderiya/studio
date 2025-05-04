@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -46,49 +47,50 @@ export function ProblemInputForm() {
      setIsParsing(true);
      startTransition(async () => {
          try {
-         // Call the exported wrapper function
-         const parsedMetadata: ProblemMetadata = await parseProblemMetadata(values.problemText);
+             // Call the exported wrapper function
+             const parsedMetadata: ProblemMetadata = await parseProblemMetadata(values.problemText);
 
-         // Rating is now optional for initial interval, but helpful
-         const initialRating = parsedMetadata.rating; // Can be undefined
-         const initialInterval = initialRating ?? AGAIN_INTERVAL; // Default to 1 day if no rating provided
+             // Rating is now optional for initial interval, but helpful
+             const initialRating = parsedMetadata.rating; // Can be undefined
+             const initialInterval = initialRating ?? AGAIN_INTERVAL; // Default to 1 day if no rating provided
 
-          if (!parsedMetadata.url && !parsedMetadata.title) {
+              if (!parsedMetadata.url && !parsedMetadata.title) {
+                 toast({
+                     variant: "destructive",
+                     title: "Parsing Error",
+                     description: "Could not find a title or URL for the problem.",
+                 });
+                 setIsParsing(false);
+                 return;
+             }
+
+
+             const now = Date.now();
+             const nextReviewDate = now + (initialInterval * 24 * 60 * 60 * 1000); // First review based on interval
+
+             const newProblem: LeetCodeProblem = {
+               ...parsedMetadata,
+               id: parsedMetadata.url || `${parsedMetadata.title}-${now}`, // Use URL as ID if available, otherwise combine title and timestamp
+               // Rating is optional on the stored object itself now
+               rating: initialRating, // Store the initial rating if provided, might be useful later
+               // Initialize SRS fields
+               interval: initialInterval,
+               easeFactor: DEFAULT_EASE_FACTOR,
+               repetitions: 0, // Start with 0 repetitions
+               nextReviewDate: nextReviewDate,
+               dateSolved: parsedMetadata.dateSolved || new Date(now).toLocaleDateString(), // Default to today if not parsed
+               // lastReviewedDate is initially undefined
+             };
+
+             addProblem(newProblem);
+             console.log("Problem added, triggering update event..."); // Add console log
+             triggerProblemUpdateEvent(); // Dispatch event *inside* the transition
+
              toast({
-                 variant: "destructive",
-                 title: "Parsing Error",
-                 description: "Could not find a title or URL for the problem.",
+               title: "Problem Added",
+               description: `"${newProblem.title || 'Problem'}" scheduled for review on ${new Date(newProblem.nextReviewDate).toLocaleDateString()}.`,
              });
-             setIsParsing(false);
-             return;
-         }
-
-
-         const now = Date.now();
-         const nextReviewDate = now + (initialInterval * 24 * 60 * 60 * 1000); // First review based on interval
-
-         const newProblem: LeetCodeProblem = {
-           ...parsedMetadata,
-           id: parsedMetadata.url || `${parsedMetadata.title}-${now}`, // Use URL as ID if available, otherwise combine title and timestamp
-           // Rating is optional on the stored object itself now
-           rating: initialRating, // Store the initial rating if provided, might be useful later
-           // Initialize SRS fields
-           interval: initialInterval,
-           easeFactor: DEFAULT_EASE_FACTOR,
-           repetitions: 0, // Start with 0 repetitions
-           nextReviewDate: nextReviewDate,
-           dateSolved: parsedMetadata.dateSolved || new Date(now).toLocaleDateString(), // Default to today if not parsed
-           // lastReviewedDate is initially undefined
-         };
-
-         addProblem(newProblem);
-         triggerProblemUpdateEvent(); // Dispatch event
-
-         toast({
-           title: "Problem Added",
-           description: `"${newProblem.title || 'Problem'}" scheduled for review on ${new Date(newProblem.nextReviewDate).toLocaleDateString()}.`,
-         });
-         form.reset(); // Clear the form
+             form.reset(); // Clear the form
        } catch (error) {
          console.error("Error parsing or adding problem:", error);
          toast({

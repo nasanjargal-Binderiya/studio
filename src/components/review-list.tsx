@@ -5,11 +5,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { loadProblems, updateProblem, deleteProblem, triggerProblemUpdateEvent } from '@/lib/problem-store'; // Import storage functions and trigger event
 import type { LeetCodeProblem, ReviewPerformance } from '@/types/problem';
 import { calculateNextReview } from '@/lib/srs'; // Import SRS calculation logic
+// Import constants used in ProblemCard tooltips calculation
+import { AGAIN_INTERVAL, HARD_INTERVAL_MULTIPLIER, DEFAULT_EASE_FACTOR, EASY_INTERVAL_BONUS } from '@/types/problem';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info } from 'lucide-react';
+import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -47,37 +49,51 @@ const formatDays = (days: number): string => {
 
 export function ReviewList() {
   const [problems, setProblems] = useState<LeetCodeProblem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Ensure initial state is true
   const { toast } = useToast();
 
-  const refreshProblems = useCallback(() => {
-     setIsLoading(true);
-     // Ensure this runs only on the client
-     if (typeof window !== 'undefined') {
-         const loaded = loadProblems();
-         const now = Date.now();
-         // Sort problems: due first, then upcoming, ordered by next review date
-         const sorted = loaded
-             .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number') // Ensure nextReviewDate exists and is a number
-             .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
-         setProblems(sorted);
-     }
-     setIsLoading(false);
- }, []);
+ const refreshProblems = useCallback(() => {
+    setIsLoading(true); // Set loading true at the start
+    try {
+      // Ensure this runs only on the client
+      if (typeof window !== 'undefined') {
+        const loaded = loadProblems();
+        const now = Date.now();
+        // Sort problems: due first, then upcoming, ordered by next review date
+        const sorted = loaded
+          .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number') // Ensure nextReviewDate exists and is a number
+          .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
+        setProblems(sorted);
+      }
+    } catch (error) {
+        console.error("Failed to load problems:", error);
+        toast({
+            variant: "destructive",
+            title: "Error Loading Problems",
+            description: "Could not load review list. Please try refreshing the page.",
+        });
+        setProblems([]); // Set to empty array on error
+    } finally {
+        setIsLoading(false); // Set loading false after try/catch/finally block
+    }
+ }, [toast]); // Include toast in dependencies
 
   useEffect(() => {
+    // Initial load
     refreshProblems();
 
-    // Listen for custom event when a problem is added/updated/deleted
+    // Listener for updates
     const handleProblemUpdate = () => {
+       console.log("problemUpdated event received, refreshing list..."); // Add console log
        refreshProblems();
     };
     window.addEventListener('problemUpdated', handleProblemUpdate);
 
+    // Cleanup listener on unmount
      return () => {
         window.removeEventListener('problemUpdated', handleProblemUpdate);
      };
-  }, [refreshProblems]);
+  }, [refreshProblems]); // Dependency array includes refreshProblems
 
 
  const handleReview = (id: string, performance: ReviewPerformance) => {
@@ -110,10 +126,15 @@ export function ReviewList() {
    };
 
   if (isLoading) {
-    return <p>Loading review problems...</p>;
+     return (
+        <div className="flex justify-center items-center py-10">
+             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             <span className="ml-3 text-muted-foreground">Loading review problems...</span>
+         </div>
+     );
   }
 
-  if (problems.length === 0) {
+  if (!isLoading && problems.length === 0) {
     return (
       <Alert>
          <BrainCircuit className="h-4 w-4" />
@@ -154,6 +175,16 @@ export function ReviewList() {
                    </div>
                </div>
            )}
+           {/* Show message if there are problems but none are due or upcoming (edge case) */}
+           {dueProblems.length === 0 && upcomingProblems.length === 0 && problems.length > 0 && (
+                 <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>All Caught Up!</AlertTitle>
+                    <AlertDescription>
+                        You have problems stored, but none are currently due or upcoming.
+                    </AlertDescription>
+                </Alert>
+           )}
         </div>
      </TooltipProvider>
   );
@@ -182,7 +213,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
 
 
     return (
-         <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : ''}`}>
+         <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'}`}>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start gap-2">
                   {/* Title, URL, Difficulty, SRS Info */}
@@ -214,7 +245,11 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                 </TooltipTrigger>
                                 <TooltipContent>Current ease factor</TooltipContent>
                             </Tooltip>
-                          <span>Next: {nextReviewDateStr}</span>
+                           {isDue ? (
+                              <span className="text-destructive font-medium">Due now</span>
+                            ) : (
+                               <span>Next: {nextReviewDateStr}</span>
+                            )}
                           <span>Last: {lastReviewedDateStr}</span>
                       </div>
                   </div>

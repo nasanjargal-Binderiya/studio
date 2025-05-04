@@ -3,15 +3,74 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker, useDayRender } from "react-day-picker"
+import { DayPicker, useDayRender, type DayProps } from "react-day-picker" // Import DayProps
 import { format, isValid } from 'date-fns'; // Import isValid
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"; // Keep Badge import
+import { Button } from './button'; // Keep Button import
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
     scheduledDatesWithCounts?: Record<string, number>; // Map of 'yyyy-MM-dd' to count
 };
+
+// Define the CustomDay component
+function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: DayProps & { scheduledDatesWithCounts?: Record<string, number> }) {
+    // Call useDayRender inside the custom component
+    const { buttonProps, dayProps, isButton, divProps } = useDayRender(day, displayMonth);
+
+    // Ensure day is a valid Date object before formatting
+    if (!isValid(day)) {
+        // Render the default button or div if the date is invalid
+        if (isButton) {
+           return <button {...buttonProps} {...dayProps} />;
+        }
+        return <div {...divProps} {...dayProps} />;
+    }
+
+    const dateString = format(day, 'yyyy-MM-dd');
+    const count = scheduledDatesWithCounts[dateString];
+
+    // Render the default button or div with the badge if there's a count
+    if (isButton) {
+        return (
+            <div className="relative">
+                <button {...buttonProps} {...dayProps} />
+                {count && count > 0 && (
+                   <Badge
+                      variant="secondary"
+                      className={cn(
+                        "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
+                        // Make badge more prominent if the date is selected or scheduled
+                        (dayProps.modifiers?.selected || dayProps.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                      )}
+                   >
+                      {count}
+                   </Badge>
+                )}
+            </div>
+        );
+    }
+    // If not a button (e.g., outside day), render the div
+    return (
+        <div className="relative">
+            <div {...divProps} {...dayProps} />
+            {count && count > 0 && (
+               <Badge
+                  variant="secondary"
+                  className={cn(
+                    "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
+                    // Make badge more prominent if the date is selected or scheduled
+                     (dayProps.modifiers?.selected || dayProps.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                  )}
+               >
+                  {count}
+               </Badge>
+            )}
+        </div>
+    );
+}
 
 function Calendar({
   className,
@@ -20,40 +79,6 @@ function Calendar({
   scheduledDatesWithCounts = {}, // Default to empty object
   ...props
 }: CalendarProps) {
-
-  const renderDay = (day: Date, _selectedDate: Date | undefined, dayPickerProps: Parameters<typeof useDayRender>[2]) => {
-     // Ensure day is a valid Date object before formatting
-     if (!isValid(day)) {
-         // Return the default rendering or null if the date is invalid
-         const { DayButton } = useDayRender(day, _selectedDate, dayPickerProps);
-         return <DayButton />; // Or return null if you prefer to hide invalid days entirely
-     }
-
-     const dateString = format(day, 'yyyy-MM-dd');
-     const count = scheduledDatesWithCounts[dateString];
-
-     // Use the default Day component from react-day-picker
-     const { DayButton } = useDayRender(day, _selectedDate, dayPickerProps);
-
-      return (
-        <div className="relative">
-             <DayButton />
-             {count && count > 0 && (
-                <Badge
-                   variant="secondary"
-                   className={cn(
-                     "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
-                     // Make badge more prominent if the date is selected or scheduled
-                     (dayPickerProps.modifiers.selected || dayPickerProps.modifiers.scheduled) && "bg-primary text-primary-foreground"
-                   )}
-                >
-                   {count}
-                </Badge>
-             )}
-        </div>
-     );
-   };
-
 
   return (
     <DayPicker
@@ -86,7 +111,7 @@ function Calendar({
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
         day_today: "bg-accent text-accent-foreground",
         day_outside:
-          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
+          "day-outside text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground", // Added opacity-50 for outside days
         day_disabled: "text-muted-foreground opacity-50",
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
@@ -100,8 +125,8 @@ function Calendar({
         IconRight: ({ className, ...props }) => (
           <ChevronRight className={cn("h-4 w-4", className)} {...props} />
         ),
-         // Use the custom Day component wrapper
-         Day: renderDay,
+        // Pass the custom Day component with props
+        Day: (dayProps) => <CustomDay {...dayProps} scheduledDatesWithCounts={scheduledDatesWithCounts} />,
       }}
       {...props}
     />
@@ -109,10 +134,7 @@ function Calendar({
 }
 Calendar.displayName = "Calendar"
 
-// We need to export Badge from here if Calendar uses it internally
-// and Calendar is imported elsewhere. Alternatively, ensure Badge
-// is imported where Calendar is used. Let's re-export for simplicity.
-import { Badge } from "@/components/ui/badge";
-import { Button } from './button'; // Import Button for the footer
+// Keep Badge and Button exports if needed elsewhere, but they are standard UI components
 export { Calendar };
 
+    

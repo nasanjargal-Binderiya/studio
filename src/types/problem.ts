@@ -5,7 +5,7 @@ import { z } from 'zod';
 // Moved from src/ai/flows/parseProblemMetadata.ts
 export const ProblemMetadataSchema = z.object({
   title: z.string().optional().describe('The title of the LeetCode problem'),
-  // Removed .url() as it's not supported by the LLM's schema enforcement
+  // Use a refined string for URL to allow empty or valid URL
   url: z.string().optional().describe('The URL of the LeetCode problem'),
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional().describe('The difficulty level of the problem'),
   dateSolved: z.string().optional().describe('The date the problem was solved (e.g., MM/DD or MM/DD/YYYY)'),
@@ -13,8 +13,10 @@ export const ProblemMetadataSchema = z.object({
   timeComplexity: z.string().optional().describe('Time complexity analysis (e.g., O(N), O(NlogN))'),
   spaceComplexity: z.string().optional().describe('Space complexity analysis (e.g., O(1), O(N))'),
   algorithm: z.string().optional().describe('The algorithm or approach used'),
-  notes: z.string().optional().describe('Any additional notes or the code solution itself'),
+  notes: z.string().optional().describe('Any additional notes'),
+  code: z.string().optional().describe('The code solution itself'), // Added code field
 });
+
 
 export type ProblemMetadata = z.infer<typeof ProblemMetadataSchema>;
 
@@ -40,4 +42,3 @@ export interface LeetCodeProblem extends ProblemMetadata {
 
 // Type for review performance feedback
 export type ReviewPerformance = 'Again' | 'Hard' | 'Good' | 'Easy';
-

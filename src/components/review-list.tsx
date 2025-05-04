@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2 } from 'lucide-react';
+import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2, Code } from 'lucide-react'; // Added Code icon
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -303,6 +303,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                <span>Next: {displayData.nextReviewDateStr}</span>
                             )}
                           <span>Last: {displayData.lastReviewedDateStr}</span>
+                          {problem.dateSolved && <span>Solved: {new Date(problem.dateSolved).toLocaleDateString()}</span>}
                       </div>
                   </div>
                   {/* Delete Button */}
@@ -336,16 +337,24 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
             </CardHeader>
              <CardContent className="pt-0">
                  {/* Details: Complexity, Algorithm, Notes */}
-                 {(problem.timeComplexity || problem.spaceComplexity || problem.algorithm || problem.notes) && (
-                    <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                        {problem.timeComplexity && <p><Gauge className="inline h-4 w-4 mr-1" /> Time: <code className="bg-muted px-1 rounded">{problem.timeComplexity}</code></p>}
-                        {problem.spaceComplexity && <p><Gauge className="inline h-4 w-4 mr-1" /> Space: <code className="bg-muted px-1 rounded">{problem.spaceComplexity}</code></p>}
-                        {problem.algorithm && <p><BrainCircuit className="inline h-4 w-4 mr-1" /> Algorithm: {problem.algorithm}</p>}
-                        {problem.notes && (
+                 {(problem.timeComplexity || problem.spaceComplexity || problem.algorithm || problem.notes || problem.code) && (
+                     <div className="space-y-3 mb-4">
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                             {problem.timeComplexity && <p><Gauge className="inline h-4 w-4 mr-1" /> Time: <code className="bg-muted px-1 rounded">{problem.timeComplexity}</code></p>}
+                             {problem.spaceComplexity && <p><Gauge className="inline h-4 w-4 mr-1" /> Space: <code className="bg-muted px-1 rounded">{problem.spaceComplexity}</code></p>}
+                             {problem.algorithm && <p><BrainCircuit className="inline h-4 w-4 mr-1" /> Algorithm: {problem.algorithm}</p>}
+                         </div>
+                         {problem.notes && (
+                             <div>
+                                 <p className="font-medium text-foreground/80 text-sm mb-1">Notes:</p>
+                                 <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{problem.notes}</p>
+                             </div>
+                         )}
+                         {problem.code && (
                             <div>
-                                <p className="font-medium text-foreground/80">Notes/Code:</p>
-                                <pre className="mt-1 p-2 bg-muted rounded text-xs whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-                                    <code>{problem.notes}</code>
+                                <p className="font-medium text-foreground/80 text-sm mb-1 flex items-center gap-1"><Code className="h-4 w-4"/>Code:</p>
+                                <pre className="mt-1 p-2 bg-muted rounded text-xs whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono">
+                                    <code>{problem.code}</code>
                                 </pre>
                             </div>
                         )}
@@ -399,3 +408,4 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
+

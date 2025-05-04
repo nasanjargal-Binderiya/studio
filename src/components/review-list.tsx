@@ -159,7 +159,7 @@ export function ReviewList() {
          <BrainCircuit className="h-4 w-4" />
         <AlertTitle>No Problems Yet!</AlertTitle>
         <AlertDescription>
-          Add your first solved LeetCode problem using the form on the left to start scheduling reviews.
+          Add your first solved LeetCode problem using the "Add New Problem" button to start scheduling reviews.
         </AlertDescription>
       </Alert>
     );
@@ -353,8 +353,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                          {problem.code && (
                             <div>
                                 <p className="font-medium text-foreground/80 text-sm mb-1 flex items-center gap-1"><Code className="h-4 w-4"/>Code:</p>
-                                <pre className="mt-1 p-2 bg-muted rounded text-xs whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono">
-                                    <code>{problem.code}</code>
+                                {/* Use pre and code tags for semantic meaning. Add styling for code block appearance */}
+                                <pre className="mt-1 p-3 bg-muted/80 border border-border rounded-md text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner">
+                                    <code className="block">{problem.code}</code>
                                 </pre>
                             </div>
                         )}
@@ -408,4 +409,3 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
-

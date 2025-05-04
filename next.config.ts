@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -17,6 +18,16 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  // Add webpack configuration to handle 'async_hooks'
+  webpack: (config, { isServer }) => {
+    // Exclude 'async_hooks' from client-side bundles
+    if (!isServer) {
+      // Ensure fallback object exists
+      config.resolve.fallback = config.resolve.fallback || {};
+      config.resolve.fallback.async_hooks = false;
+    }
+    return config;
   },
 };
 

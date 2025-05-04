@@ -197,7 +197,7 @@ export function ReviewList() {
      return (
         // Add suppressHydrationWarning here
         <div className="flex justify-center items-center py-10" suppressHydrationWarning>
-             <Loader2 className="h-8 w-8 animate-spin text-primary" />
+             <Loader2 className="h-8 w-8 animate-spin text-primary" suppressHydrationWarning />
              <span className="ml-3 text-muted-foreground">Loading review problems...</span>
          </div>
      );
@@ -366,7 +366,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
             <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'} p-4 min-h-[150px]`}>
                 {/* Add suppressHydrationWarning here as well for consistency */}
                 <div className="flex justify-center items-center h-full" suppressHydrationWarning>
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" suppressHydrationWarning />
                 </div>
             </Card>
          );
@@ -528,3 +528,5 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
     );
 }
 
+
+    

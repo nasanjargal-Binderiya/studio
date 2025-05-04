@@ -357,7 +357,8 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                             <div>
                                 <p className="font-medium text-foreground/80 text-sm mb-1 flex items-center gap-1"><Code className="h-4 w-4"/>Code:</p>
                                 {/* Use pre and code tags for semantic meaning. Add styling for code block appearance */}
-                                <pre className="mt-1 p-3 bg-muted/80 border border-border rounded-md text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner">
+                                {/* Updated background to bg-muted for better contrast */}
+                                <pre className="mt-1 p-3 bg-muted border border-border rounded-md text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner">
                                     <code className="block">{problem.code}</code>
                                 </pre>
                             </div>
@@ -414,5 +415,3 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
-
-    

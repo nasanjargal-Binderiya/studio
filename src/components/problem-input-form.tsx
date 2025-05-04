@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import React, { useState, useTransition } from 'react';
-import { parseProblemMetadataFlow } from '@/ai/flows/parseProblemMetadata';
+// Import the exported wrapper function
+import { parseProblemMetadata } from '@/ai/flows/parseProblemMetadata';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -18,6 +19,7 @@ import {
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { addProblem } from '@/lib/problem-store';
+// Update import path for types
 import type { LeetCodeProblem, ProblemMetadata } from '@/types/problem';
 import { Loader2 } from "lucide-react";
 
@@ -43,7 +45,8 @@ export function ProblemInputForm() {
      setIsParsing(true);
      startTransition(async () => {
          try {
-         const parsedMetadata: ProblemMetadata = await parseProblemMetadataFlow(values.problemText);
+         // Call the exported wrapper function
+         const parsedMetadata: ProblemMetadata = await parseProblemMetadata(values.problemText);
 
          if (!parsedMetadata.rating) {
            toast({
@@ -66,13 +69,16 @@ export function ProblemInputForm() {
 
 
          const now = Date.now();
-         const nextReviewDate = now + (parsedMetadata.rating * 24 * 60 * 60 * 1000); // rating in days
+         // Ensure rating is defined before calculation
+         const ratingDays = parsedMetadata.rating ?? 1; // Default to 1 day if rating is somehow undefined after check
+         const nextReviewDate = now + (ratingDays * 24 * 60 * 60 * 1000); // rating in days
 
          const newProblem: LeetCodeProblem = {
            ...parsedMetadata,
            id: parsedMetadata.url || `${parsedMetadata.title}-${now}`, // Use URL as ID if available, otherwise combine title and timestamp
            nextReviewDate: nextReviewDate,
            dateSolved: parsedMetadata.dateSolved || new Date(now).toLocaleDateString(), // Default to today if not parsed
+           rating: ratingDays, // Ensure rating is set in the final object
          };
 
          addProblem(newProblem);

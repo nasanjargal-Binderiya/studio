@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import React, { useState, useTransition } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,12 +23,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+// Removed Card imports as it's now in a Dialog
 import { useToast } from "@/hooks/use-toast";
 import { addProblem, triggerProblemUpdateEvent } from '@/lib/problem-store';
 import type { LeetCodeProblem, ProblemMetadata } from '@/types/problem';
 import { DEFAULT_EASE_FACTOR, AGAIN_INTERVAL } from '@/types/problem'; // Import constants
 import { Loader2 } from "lucide-react";
+import { DialogFooter, DialogClose } from "@/components/ui/dialog"; // Import DialogFooter and DialogClose
 
 // Define the schema for the individual input fields
 const formSchema = z.object({
@@ -36,7 +37,8 @@ const formSchema = z.object({
   url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')), // Allow empty string or valid URL
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional(),
   dateSolved: z.string().optional(), // Using string for input type="date"
-  rating: z.coerce.number().min(1).max(5).optional(), // Coerce to number for input type="number"
+  // Rating description updated
+  rating: z.coerce.number().min(1).max(5).optional().describe('Initial recall difficulty (1: Hardest, 5: Easiest)'),
   timeComplexity: z.string().optional(),
   spaceComplexity: z.string().optional(),
   algorithm: z.string().optional(),
@@ -44,11 +46,15 @@ const formSchema = z.object({
   code: z.string().min(1, { message: "Code solution is required." }), // Make code required
 }).refine(data => data.url || data.title, { // Ensure at least URL or Title is provided
     message: "Either URL or Title must be provided.",
-    path: ["url"], // You can attach the error to a specific field or root
+    path: ["url"], // Attach error to URL field for visibility
 });
 
+// Add onSuccess prop to the component props
+interface ProblemInputFormProps {
+  onSuccess?: () => void;
+}
 
-export function ProblemInputForm() {
+export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -59,7 +65,7 @@ export function ProblemInputForm() {
       url: "",
       difficulty: undefined,
       dateSolved: new Date().toISOString().split('T')[0], // Default to today's date YYYY-MM-DD
-      rating: undefined,
+      rating: 3, // Default rating to 'Good' (3)
       timeComplexity: "",
       spaceComplexity: "",
       algorithm: "",
@@ -77,7 +83,21 @@ export function ProblemInputForm() {
          url: values.url || undefined, // Store undefined if empty string
          difficulty: values.difficulty,
          dateSolved: values.dateSolved,
-         rating: values.rating,
+         // Rating: 1 (Hardest) -> Longer initial interval, 5 (Easiest) -> Shorter initial interval
+         // We need to invert the rating for interval calculation or adjust the logic.
+         // Let's stick to the SRS meaning: Higher rating = easier recall -> *shorter* interval needed initially might be counter-intuitive.
+         // Anki approach: Rating influences the *first* interval directly. Let's map:
+         // 1 (Again): ~10 min (handled by review buttons later)
+         // 2 (Hard): ~12 hours (not directly used for initial, but implies difficulty)
+         // 3 (Good): 1 day (default)
+         // 4 (Easy): 4 days (default)
+         // Let's use a simplified mapping for the *initial* interval based on the rating:
+         // 5 (Easiest): Interval = 4 days
+         // 4: Interval = 3 days
+         // 3 (Good): Interval = 2 days
+         // 2: Interval = 1 day
+         // 1 (Hardest): Interval = 1 day (or less, maybe handled by immediate re-review flag - let's stick to 1 day min for scheduling)
+         rating: values.rating, // Store the raw rating (1-5)
          timeComplexity: values.timeComplexity,
          spaceComplexity: values.spaceComplexity,
          algorithm: values.algorithm,
@@ -85,15 +105,25 @@ export function ProblemInputForm() {
          code: values.code, // Add code field
        };
 
+        // Map the 1-5 rating to an initial interval (in days)
+       const ratingToInitialInterval = (rating?: number): number => {
+         switch (rating) {
+           case 5: return 4; // Easiest -> review in 4 days
+           case 4: return 3; // -> review in 3 days
+           case 3: return 2; // Good -> review in 2 days
+           case 2: return 1; // -> review in 1 day
+           case 1: return 1; // Hardest -> review in 1 day
+           default: return AGAIN_INTERVAL; // Default to 1 day if no rating
+         }
+       };
 
-       // Rating is now optional for initial interval, but helpful
-       const initialRating = problemMetadata.rating; // Can be undefined
-       const initialInterval = initialRating ?? AGAIN_INTERVAL; // Default to 1 day if no rating provided
+       const initialInterval = ratingToInitialInterval(problemMetadata.rating);
 
        const now = Date.now();
        // Use dateSolved if provided, otherwise default to now
        const solvedTimestamp = values.dateSolved ? new Date(values.dateSolved).getTime() : now;
-       const nextReviewDate = solvedTimestamp + (initialInterval * 24 * 60 * 60 * 1000); // First review based on interval
+        // Next review date is based *only* on the initial interval from rating
+       const nextReviewDate = solvedTimestamp + (initialInterval * 24 * 60 * 60 * 1000);
 
        // Infer title from URL if title is missing and URL is present
        if (!problemMetadata.title && problemMetadata.url) {
@@ -106,11 +136,12 @@ export function ProblemInputForm() {
            }
          } catch (e) {
            console.warn("Could not parse title from URL:", problemMetadata.url);
+           // Don't block submission if parsing fails, rely on validation below
          }
        }
 
+        // Re-check validation (should be caught by refine, but good practice)
         if (!problemMetadata.title && !problemMetadata.url) {
-            // This case should be caught by the form validation (refine), but double-check
              toast({
                  variant: "destructive",
                  title: "Missing Information",
@@ -124,12 +155,12 @@ export function ProblemInputForm() {
        const newProblem: LeetCodeProblem = {
          ...problemMetadata,
          id: problemMetadata.url || `${problemMetadata.title}-${now}`, // Use URL as ID if available
-         rating: initialRating, // Store the initial rating if provided
-         interval: initialInterval,
-         easeFactor: DEFAULT_EASE_FACTOR,
-         repetitions: 0,
+         rating: problemMetadata.rating, // Store the initial rating (1-5)
+         interval: initialInterval, // Store the calculated initial interval
+         easeFactor: DEFAULT_EASE_FACTOR, // Start with default ease
+         repetitions: 0, // Start with 0 repetitions
          nextReviewDate: nextReviewDate,
-         dateSolved: values.dateSolved || new Date(now).toLocaleDateString(), // Use form value or default
+         dateSolved: values.dateSolved || new Date(now).toLocaleDateString('en-CA'), // Use YYYY-MM-DD format
          // lastReviewedDate is initially undefined
        };
 
@@ -142,6 +173,8 @@ export function ProblemInputForm() {
          description: `"${newProblem.title || 'Problem'}" scheduled for review on ${new Date(newProblem.nextReviewDate).toLocaleDateString()}.`,
        });
        form.reset(); // Clear the form
+       onSuccess?.(); // Call the success callback to close the modal
+
      } catch (error) {
        console.error("Error adding problem:", error);
        toast({
@@ -154,203 +187,210 @@ export function ProblemInputForm() {
      }
   }
 
+  // Remove Card wrappers, use Dialog structure provided by the parent
   return (
-    <Card className="shadow-md">
-      <CardHeader>
-        <CardTitle>Add New LeetCode Problem</CardTitle>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            {/* URL and Title */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="url"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>URL</FormLabel>
-                    <FormControl>
-                      <Input placeholder="https://leetcode.com/problems/..." {...field} type="url" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="title"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Title</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Two Sum" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Difficulty, Rating, Date Solved */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-               <FormField
-                control={form.control}
-                name="difficulty"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Difficulty</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select difficulty" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Easy">Easy</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="Hard">Hard</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-               <FormField
-                 control={form.control}
-                 name="rating"
-                 render={({ field }) => (
-                   <FormItem>
-                     <FormLabel>Initial Rating (1-5)</FormLabel>
-                      <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value?.toString()}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select rating (sets first review)" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                           {[1, 2, 3, 4, 5].map(r => (
-                              <SelectItem key={r} value={r.toString()}>{r}</SelectItem>
-                           ))}
-                        </SelectContent>
-                      </Select>
-                     <FormMessage />
-                   </FormItem>
-                 )}
-               />
-              <FormField
-                control={form.control}
-                name="dateSolved"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Date Solved</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-             {/* Time Complexity, Space Complexity, Algorithm */}
-             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-               <FormField
-                 control={form.control}
-                 name="timeComplexity"
-                 render={({ field }) => (
-                   <FormItem>
-                     <FormLabel>Time Complexity</FormLabel>
-                     <FormControl>
-                       <Input placeholder="e.g., O(N)" {...field} />
-                     </FormControl>
-                     <FormMessage />
-                   </FormItem>
-                 )}
-               />
-                <FormField
-                 control={form.control}
-                 name="spaceComplexity"
-                 render={({ field }) => (
-                   <FormItem>
-                     <FormLabel>Space Complexity</FormLabel>
-                     <FormControl>
-                       <Input placeholder="e.g., O(1)" {...field} />
-                     </FormControl>
-                     <FormMessage />
-                   </FormItem>
-                 )}
-               />
-               <FormField
-                 control={form.control}
-                 name="algorithm"
-                 render={({ field }) => (
-                   <FormItem>
-                     <FormLabel>Algorithm/Approach</FormLabel>
-                     <FormControl>
-                       <Input placeholder="e.g., Two Pointers, DP" {...field} />
-                     </FormControl>
-                     <FormMessage />
-                   </FormItem>
-                 )}
-               />
-             </div>
-
-             {/* Notes */}
-             <FormField
-               control={form.control}
-               name="notes"
-               render={({ field }) => (
-                 <FormItem>
-                   <FormLabel>Notes</FormLabel>
-                   <FormControl>
-                     <Textarea
-                       placeholder="Any additional thoughts, observations, or hints..."
-                       className="min-h-[100px]"
-                       {...field}
-                       disabled={isSubmitting}
-                     />
-                   </FormControl>
-                   <FormMessage />
-                 </FormItem>
-               )}
-             />
-
-            {/* Code Solution */}
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4"> {/* Add padding top */}
+        {/* Form Content - Removed CardContent wrapper */}
+        <div className="space-y-4 px-1 max-h-[calc(90vh-200px)] overflow-y-auto pr-3"> {/* Scrollable area for content */}
+          {/* URL and Title */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="code"
+              name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Code Solution</FormLabel>
+                  <FormLabel>URL</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Paste your code solution here..."
-                      className="min-h-[200px] bg-muted/50 text-sm font-mono" // Monospaced font for code
-                      {...field}
-                      disabled={isSubmitting}
-                    />
+                    <Input placeholder="https://leetcode.com/problems/..." {...field} type="url" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Two Sum" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
 
-          </CardContent>
-          <CardFooter>
-             <Button type="submit" disabled={isSubmitting} className="w-full bg-primary hover:bg-primary/90">
-                 {isSubmitting ? (
-                     <>
-                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                         Adding...
-                     </>
-                 ) : (
-                     'Add and Schedule Review'
-                 )}
-             </Button>
-          </CardFooter>
-        </form>
-      </Form>
-    </Card>
+          {/* Difficulty, Rating, Date Solved */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+             <FormField
+              control={form.control}
+              name="difficulty"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Difficulty</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select difficulty" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Easy">Easy</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Hard">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+               control={form.control}
+               name="rating"
+               render={({ field }) => (
+                 <FormItem>
+                   <FormLabel>Initial Difficulty Rating</FormLabel>
+                    <Select onValueChange={(value) => field.onChange(parseInt(value))} defaultValue={field.value?.toString()}>
+                      <FormControl>
+                        <SelectTrigger>
+                          {/* Updated placeholder */}
+                          <SelectValue placeholder="Rate initial recall (1=Hard, 5=Easy)" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                         {/* Clarify rating meaning */}
+                         <SelectItem value="1">1 (Very Hard)</SelectItem>
+                         <SelectItem value="2">2 (Hard)</SelectItem>
+                         <SelectItem value="3">3 (Good)</SelectItem>
+                         <SelectItem value="4">4 (Easy)</SelectItem>
+                         <SelectItem value="5">5 (Very Easy)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                 </FormItem>
+               )}
+             />
+            <FormField
+              control={form.control}
+              name="dateSolved"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date Solved</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+           {/* Time Complexity, Space Complexity, Algorithm */}
+           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+             <FormField
+               control={form.control}
+               name="timeComplexity"
+               render={({ field }) => (
+                 <FormItem>
+                   <FormLabel>Time Complexity</FormLabel>
+                   <FormControl>
+                     <Input placeholder="e.g., O(N)" {...field} />
+                   </FormControl>
+                   <FormMessage />
+                 </FormItem>
+               )}
+             />
+              <FormField
+               control={form.control}
+               name="spaceComplexity"
+               render={({ field }) => (
+                 <FormItem>
+                   <FormLabel>Space Complexity</FormLabel>
+                   <FormControl>
+                     <Input placeholder="e.g., O(1)" {...field} />
+                   </FormControl>
+                   <FormMessage />
+                 </FormItem>
+               )}
+             />
+             <FormField
+               control={form.control}
+               name="algorithm"
+               render={({ field }) => (
+                 <FormItem>
+                   <FormLabel>Algorithm/Approach</FormLabel>
+                   <FormControl>
+                     <Input placeholder="e.g., Two Pointers, DP" {...field} />
+                   </FormControl>
+                   <FormMessage />
+                 </FormItem>
+               )}
+             />
+           </div>
+
+           {/* Notes */}
+           <FormField
+             control={form.control}
+             name="notes"
+             render={({ field }) => (
+               <FormItem>
+                 <FormLabel>Notes</FormLabel>
+                 <FormControl>
+                   <Textarea
+                     placeholder="Any additional thoughts, observations, or hints..."
+                     className="min-h-[100px]"
+                     {...field}
+                     disabled={isSubmitting}
+                   />
+                 </FormControl>
+                 <FormMessage />
+               </FormItem>
+             )}
+           />
+
+          {/* Code Solution */}
+          <FormField
+            control={form.control}
+            name="code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Code Solution</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder="Paste your code solution here..."
+                    className="min-h-[150px] bg-muted/50 text-sm font-mono" // Slightly smaller min-height for modal
+                    {...field}
+                    disabled={isSubmitting}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div> {/* End scrollable content */}
+
+        {/* Dialog Footer - Removed CardFooter */}
+         <DialogFooter className="pt-4 border-t"> {/* Add padding top and border */}
+             <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={isSubmitting}>
+                   Cancel
+                </Button>
+             </DialogClose>
+            <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90">
+                {isSubmitting ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Adding...
+                    </>
+                ) : (
+                    'Add and Schedule Review'
+                )}
+            </Button>
+         </DialogFooter>
+      </form>
+    </Form>
   );
 }

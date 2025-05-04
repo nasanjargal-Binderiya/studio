@@ -5,7 +5,8 @@ import { z } from 'zod';
 // Moved from src/ai/flows/parseProblemMetadata.ts
 export const ProblemMetadataSchema = z.object({
   title: z.string().optional().describe('The title of the LeetCode problem'),
-  url: z.string().url().optional().describe('The URL of the LeetCode problem'),
+  // Removed .url() as it's not supported by the LLM's schema enforcement
+  url: z.string().optional().describe('The URL of the LeetCode problem'),
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional().describe('The difficulty level of the problem'),
   dateSolved: z.string().optional().describe('The date the problem was solved (e.g., MM/DD or MM/DD/YYYY)'),
   rating: z.number().min(1).max(5).optional().describe('The initial review rating (1-5), determining the first interval in days'),

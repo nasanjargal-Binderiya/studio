@@ -14,6 +14,12 @@ import { Separator } from '@/components/ui/separator';
 import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2, Code } from 'lucide-react'; // Added Code icon
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"; // Import Accordion components
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -353,15 +359,20 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                  <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words">{problem.notes}</p>
                              </div>
                          )}
-                         {problem.code && (
-                            <div>
-                                <p className="font-medium text-foreground/80 text-sm mb-1 flex items-center gap-1"><Code className="h-4 w-4"/>Code:</p>
-                                {/* Use pre and code tags for semantic meaning. Add styling for code block appearance */}
-                                {/* Updated background to bg-muted for better contrast */}
-                                <pre className="mt-1 p-3 bg-muted border border-border rounded-md text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner">
-                                    <code className="block">{problem.code}</code>
-                                </pre>
-                            </div>
+                          {problem.code && (
+                            <Accordion type="single" collapsible className="w-full mt-3">
+                              <AccordionItem value="item-1" className="border-none">
+                                <AccordionTrigger className="py-2 px-3 bg-muted hover:bg-muted/90 rounded-t-md text-sm font-medium text-foreground/80">
+                                  <span className="flex items-center gap-1"><Code className="h-4 w-4"/>Show Code</span>
+                                </AccordionTrigger>
+                                <AccordionContent className="border border-t-0 border-border rounded-b-md bg-muted/50 p-0">
+                                    {/* Use pre and code tags for semantic meaning. Add styling for code block appearance */}
+                                    <pre className="p-3 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner rounded-b-md m-0 bg-transparent border-none">
+                                        <code className="block">{problem.code}</code>
+                                    </pre>
+                                </AccordionContent>
+                              </AccordionItem>
+                            </Accordion>
                         )}
                     </div>
                  )}
@@ -415,3 +426,4 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
+

@@ -1,17 +1,17 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { loadProblems, updateProblem, deleteProblem, triggerProblemUpdateEvent } from '@/lib/problem-store'; // Import storage functions and trigger event
 import type { LeetCodeProblem, ReviewPerformance } from '@/types/problem';
 import { calculateNextReview } from '@/lib/srs'; // Import SRS calculation logic
 // Import constants used in ProblemCard tooltips calculation
 import { AGAIN_INTERVAL, HARD_INTERVAL_MULTIPLIER, DEFAULT_EASE_FACTOR, EASY_INTERVAL_BONUS } from '@/types/problem';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Removed CardFooter, CardDescription as they are not directly used at top level
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2, Code } from 'lucide-react'; // Added Code icon
+import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info, Loader2, Code, Calendar as CalendarIcon } from 'lucide-react'; // Added Code, CalendarIcon icons
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Accordion,
@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Calendar } from "@/components/ui/calendar"; // Import Calendar component
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -47,10 +48,15 @@ const DifficultyBadge = ({ difficulty }: { difficulty: LeetCodeProblem['difficul
 const formatDays = (days: number): string => {
     // Handle potential NaN or undefined inputs gracefully
     if (isNaN(days) || days === undefined || days === null) return "N/A";
-    if (days < 1) return "<1 day";
-    if (days < 30) return `${Math.round(days)} day${days >= 1.5 ? 's' : ''}`;
-    if (days < 365) return `${(days / 30).toFixed(1)} month${days >= 45 ? 's' : ''}`;
-    return `${(days / 365).toFixed(1)} year${days >= 548 ? 's' : ''}`;
+    // Round days for display, handle <1 day case
+    const roundedDays = Math.round(days);
+    if (roundedDays < 1) return "<1 day";
+    if (roundedDays < 30) return `${roundedDays} day${roundedDays !== 1 ? 's' : ''}`;
+    // Use fixed decimal for months/years
+    const months = (days / 30).toFixed(1);
+    if (days < 365) return `${months} month${parseFloat(months) > 1.0 ? 's' : ''}`;
+    const years = (days / 365).toFixed(1);
+    return `${years} year${parseFloat(years) > 1.0 ? 's' : ''}`;
 };
 
 export function ReviewList() {
@@ -58,7 +64,14 @@ export function ReviewList() {
   const [isLoading, setIsLoading] = useState(true); // Start as loading
   const [dueProblems, setDueProblems] = useState<LeetCodeProblem[]>([]);
   const [upcomingProblems, setUpcomingProblems] = useState<LeetCodeProblem[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // State for calendar date selection
   const { toast } = useToast();
+
+   // Memoize upcoming review dates for the calendar
+   const upcomingReviewDates = useMemo(() => {
+      return upcomingProblems.map(p => new Date(p.nextReviewDate));
+   }, [upcomingProblems]);
+
 
   const refreshProblems = useCallback(() => {
     console.log("Refreshing problems..."); // Log refresh start
@@ -75,8 +88,12 @@ export function ReviewList() {
         .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number')
         .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
 
-      const due = sorted.filter(p => p.nextReviewDate <= now);
-      const upcoming = sorted.filter(p => p.nextReviewDate > now);
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0); // Start of today
+
+      // Due problems are those whose nextReviewDate is on or before today
+      const due = sorted.filter(p => p.nextReviewDate <= todayStart.getTime() + (24*60*60*1000 - 1)); // Up to end of today
+      const upcoming = sorted.filter(p => p.nextReviewDate > todayStart.getTime() + (24*60*60*1000 - 1)); // Starting tomorrow
 
       setProblems(sorted); // Keep the full sorted list if needed elsewhere
       setDueProblems(due);
@@ -104,7 +121,7 @@ export function ReviewList() {
     // Initial load happens here, after component mounts
     refreshProblems();
 
-    // Listener for updates triggered by adding/deleting problems
+    // Listener for updates triggered by adding/updating/deleting problems
     const handleProblemUpdate = () => {
        console.log("problemUpdated event received, refreshing list...");
        refreshProblems();
@@ -148,6 +165,20 @@ export function ReviewList() {
        triggerProblemUpdateEvent(); // Refresh list via event - will call refreshProblems
    };
 
+  // Filter upcoming problems based on selected calendar date
+  const filteredUpcomingProblems = useMemo(() => {
+      if (!selectedDate) return upcomingProblems; // Show all if no date selected
+
+      const selectedDayStart = new Date(selectedDate);
+      selectedDayStart.setHours(0, 0, 0, 0);
+      const selectedDayEnd = new Date(selectedDayStart);
+      selectedDayEnd.setDate(selectedDayEnd.getDate() + 1); // Start of next day
+
+      return upcomingProblems.filter(p =>
+          p.nextReviewDate >= selectedDayStart.getTime() && p.nextReviewDate < selectedDayEnd.getTime()
+      );
+  }, [selectedDate, upcomingProblems]);
+
   // Display loading indicator while fetching/processing
   if (isLoading) {
      return (
@@ -187,17 +218,65 @@ export function ReviewList() {
               </div>
            )}
 
-           {upcomingProblems.length > 0 && (
-               <div>
-                   <h3 className="text-xl font-semibold mb-3 text-foreground/80">Upcoming Reviews ({upcomingProblems.length})</h3>
-                   <div className="space-y-4">
-                       {upcomingProblems.map((problem) => (
-                           <ProblemCard key={problem.id} problem={problem} onReview={handleReview} onDelete={handleDeleteProblem} isDue={false}/>
-                       ))}
-                   </div>
-               </div>
+          {upcomingProblems.length > 0 && (
+             <Accordion type="single" collapsible className="w-full" defaultValue="upcoming-list">
+                <AccordionItem value="upcoming-list" className="border-b-0">
+                   <AccordionTrigger className="text-xl font-semibold mb-1 text-foreground/80 hover:no-underline justify-start gap-2 py-2">
+                        Upcoming Reviews ({upcomingProblems.length})
+                        <CalendarIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                   </AccordionTrigger>
+                   <AccordionContent className="pt-0 pb-4">
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                          {/* Calendar View */}
+                          <div className="md:col-span-1 flex justify-center md:justify-start">
+                             <Calendar
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={setSelectedDate}
+                                className="rounded-md border"
+                                modifiers={{ scheduled: upcomingReviewDates }}
+                                modifiersStyles={{
+                                  scheduled: { border: "2px solid hsl(var(--primary))", borderRadius: '50%' },
+                                }}
+                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))} // Disable past dates
+                                // Add footer to clear selection
+                                footer={
+                                  selectedDate && (
+                                    <div className="text-center pt-2">
+                                        <Button variant="ghost" size="sm" onClick={() => setSelectedDate(undefined)}>
+                                           Show All Upcoming
+                                        </Button>
+                                    </div>
+                                  )
+                                }
+                             />
+                           </div>
+
+                          {/* Upcoming Problems List */}
+                          <div className="md:col-span-2 space-y-4">
+                              {filteredUpcomingProblems.length > 0 ? (
+                                  filteredUpcomingProblems.map((problem) => (
+                                     <ProblemCard key={problem.id} problem={problem} onReview={handleReview} onDelete={handleDeleteProblem} isDue={false} />
+                                  ))
+                              ) : (
+                                  <Alert className="border-dashed">
+                                      <CalendarIcon className="h-4 w-4" />
+                                      <AlertTitle>No Reviews Scheduled</AlertTitle>
+                                      <AlertDescription>
+                                         {selectedDate
+                                            ? `No problems scheduled for review on ${selectedDate.toLocaleDateString()}.`
+                                            : "No upcoming problems found."}
+                                      </AlertDescription>
+                                  </Alert>
+                              )}
+                          </div>
+                       </div>
+                   </AccordionContent>
+                </AccordionItem>
+             </Accordion>
            )}
-           {/* Show message if there are problems but none are due or upcoming (e.g., after reviewing all due items) */}
+
+           {/* Show message if there are problems but none are due or upcoming */}
            {dueProblems.length === 0 && upcomingProblems.length === 0 && problems.length > 0 && (
                  <Alert>
                     <Info className="h-4 w-4" />
@@ -241,10 +320,18 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         const easePercent = problem.easeFactor ? Math.round(problem.easeFactor * 100) : 'N/A';
 
         // Calculate approximate next intervals safely client-side
-        const againInt = formatDays(calculateNextReview(problem, 'Again').interval ?? AGAIN_INTERVAL);
-        const hardInt = formatDays(calculateNextReview(problem, 'Hard').interval ?? problem.interval * HARD_INTERVAL_MULTIPLIER);
-        const goodInt = formatDays(calculateNextReview(problem, 'Good').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR));
-        const easyInt = formatDays(calculateNextReview(problem, 'Easy').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR) * EASY_INTERVAL_BONUS);
+        // Ensure problem object passed is valid and has necessary properties
+        const tempProblemForCalc = { // Create a temporary object with defaults if needed
+            ...problem,
+            interval: problem.interval ?? 1,
+            easeFactor: problem.easeFactor ?? DEFAULT_EASE_FACTOR,
+            repetitions: problem.repetitions ?? 0,
+        };
+
+        const againInt = formatDays(calculateNextReview(tempProblemForCalc, 'Again').interval ?? AGAIN_INTERVAL);
+        const hardInt = formatDays(calculateNextReview(tempProblemForCalc, 'Hard').interval ?? tempProblemForCalc.interval * HARD_INTERVAL_MULTIPLIER);
+        const goodInt = formatDays(calculateNextReview(tempProblemForCalc, 'Good').interval ?? tempProblemForCalc.interval * tempProblemForCalc.easeFactor);
+        const easyInt = formatDays(calculateNextReview(tempProblemForCalc, 'Easy').interval ?? tempProblemForCalc.interval * tempProblemForCalc.easeFactor * EASY_INTERVAL_BONUS);
 
         setDisplayData({
             nextReviewDateStr: nextDateStr,
@@ -362,7 +449,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                           {problem.code && (
                             <Accordion type="single" collapsible className="w-full mt-3">
                               <AccordionItem value="item-1" className="border-none">
-                                <AccordionTrigger className="py-2 px-3 bg-muted hover:bg-muted/90 rounded-t-md text-sm font-medium text-foreground/80">
+                                <AccordionTrigger className="py-2 px-3 bg-muted hover:bg-muted/90 rounded-t-md text-sm font-medium text-foreground/80 data-[state=open]:rounded-b-none">
                                   <span className="flex items-center gap-1"><Code className="h-4 w-4"/>Show Code</span>
                                 </AccordionTrigger>
                                 <AccordionContent className="border border-t-0 border-border rounded-b-md bg-muted/50 p-0">
@@ -426,4 +513,3 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
-

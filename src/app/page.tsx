@@ -31,7 +31,8 @@ export default function HomePage() {
         <div className="mb-6 flex justify-end"> {/* Add margin bottom and flex container for the button */}
            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}> {/* Control dialog state */}
               <DialogTrigger asChild>
-                <Button>
+                {/* Add suppressHydrationWarning to potentially problematic area */}
+                <Button suppressHydrationWarning>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add New Problem
                 </Button>
               </DialogTrigger>
@@ -55,3 +56,4 @@ export default function HomePage() {
     </div>
   );
 }
+

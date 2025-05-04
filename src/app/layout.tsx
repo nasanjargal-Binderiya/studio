@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import { Inter } from 'next/font/google'; // Use Inter font for a modern look
 import './globals.css';
@@ -18,10 +19,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning={true}>
       {/* Ensure no whitespace or comments between <html> and <body> */}
-      <body className={`${inter.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         {children}
         <Toaster /> {/* Add Toaster here to make it available globally */}
       </body>
     </html>
   );
 }
+

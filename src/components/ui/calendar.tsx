@@ -23,12 +23,15 @@ function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: D
     // Ensure day is a valid Date object before formatting
     if (!isValid(day)) {
         // Render the default button or div if the date is invalid
+        // Check if isButton before accessing buttonProps/dayProps
         if (isButton) {
            return <button {...buttonProps} {...dayProps} />;
         }
+        // Check if divProps/dayProps exist before spreading
         return <div {...divProps} {...dayProps} />;
     }
 
+    // If day is valid, proceed
     const dateString = format(day, 'yyyy-MM-dd');
     const count = scheduledDatesWithCounts[dateString];
 
@@ -36,14 +39,15 @@ function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: D
     if (isButton) {
         return (
             <div className="relative">
+                {/* Check if buttonProps/dayProps exist before spreading */}
                 <button {...buttonProps} {...dayProps} />
                 {count && count > 0 && (
                    <Badge
                       variant="secondary"
                       className={cn(
                         "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
-                        // Make badge more prominent if the date is selected or scheduled
-                        (dayProps.modifiers?.selected || dayProps.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                        // Safely access modifiers only if dayProps exists
+                        (dayProps?.modifiers?.selected || dayProps?.modifiers?.scheduled) && "bg-primary text-primary-foreground"
                       )}
                    >
                       {count}
@@ -55,14 +59,15 @@ function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: D
     // If not a button (e.g., outside day), render the div
     return (
         <div className="relative">
+            {/* Check if divProps/dayProps exist before spreading */}
             <div {...divProps} {...dayProps} />
             {count && count > 0 && (
                <Badge
                   variant="secondary"
                   className={cn(
                     "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
-                    // Make badge more prominent if the date is selected or scheduled
-                     (dayProps.modifiers?.selected || dayProps.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                    // Safely access modifiers only if dayProps exists
+                    (dayProps?.modifiers?.selected || dayProps?.modifiers?.scheduled) && "bg-primary text-primary-foreground"
                   )}
                >
                   {count}
@@ -137,4 +142,3 @@ Calendar.displayName = "Calendar"
 // Keep Badge and Button exports if needed elsewhere, but they are standard UI components
 export { Calendar };
 
-    

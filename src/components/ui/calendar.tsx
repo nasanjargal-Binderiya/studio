@@ -4,7 +4,7 @@
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { DayPicker, useDayRender } from "react-day-picker"
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns'; // Import isValid
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -22,6 +22,13 @@ function Calendar({
 }: CalendarProps) {
 
   const renderDay = (day: Date, _selectedDate: Date | undefined, dayPickerProps: Parameters<typeof useDayRender>[2]) => {
+     // Ensure day is a valid Date object before formatting
+     if (!isValid(day)) {
+         // Return the default rendering or null if the date is invalid
+         const { DayButton } = useDayRender(day, _selectedDate, dayPickerProps);
+         return <DayButton />; // Or return null if you prefer to hide invalid days entirely
+     }
+
      const dateString = format(day, 'yyyy-MM-dd');
      const count = scheduledDatesWithCounts[dateString];
 
@@ -106,5 +113,6 @@ Calendar.displayName = "Calendar"
 // and Calendar is imported elsewhere. Alternatively, ensure Badge
 // is imported where Calendar is used. Let's re-export for simplicity.
 import { Badge } from "@/components/ui/badge";
+import { Button } from './button'; // Import Button for the footer
 export { Calendar };
 

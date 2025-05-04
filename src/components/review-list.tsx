@@ -145,7 +145,8 @@ export function ReviewList() {
   // Display loading indicator while fetching/processing
   if (isLoading) {
      return (
-        <div className="flex justify-center items-center py-10">
+        // Add suppressHydrationWarning here
+        <div className="flex justify-center items-center py-10" suppressHydrationWarning>
              <Loader2 className="h-8 w-8 animate-spin text-primary" />
              <span className="ml-3 text-muted-foreground">Loading review problems...</span>
          </div>
@@ -256,7 +257,8 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         // You might want a more sophisticated Skeleton loader here
          return (
             <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'} p-4 min-h-[150px]`}>
-                <div className="flex justify-center items-center h-full">
+                {/* Add suppressHydrationWarning here as well for consistency */}
+                <div className="flex justify-center items-center h-full" suppressHydrationWarning>
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
             </Card>
@@ -279,7 +281,8 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                               problem.title || 'Unnamed Problem'
                           )}
                       </CardTitle>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                      {/* Wrap potentially hydrating elements in a div with suppressHydrationWarning */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" suppressHydrationWarning>
                            {problem.difficulty && <DifficultyBadge difficulty={problem.difficulty} />}
                            <Tooltip delayDuration={100}>
                                 <TooltipTrigger asChild>
@@ -363,8 +366,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                  )}
                  <Separator className="my-4" />
                  {/* Review Action Buttons - Only show for Due items */}
+                 {/* Wrap potentially hydrating elements in a div with suppressHydrationWarning */}
                  {isDue && (
-                     <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
+                     <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap" suppressHydrationWarning>
                          <Tooltip delayDuration={100}>
                              <TooltipTrigger asChild>
                                  <Button size="sm" variant="destructive" onClick={() => onReview(problem.id, 'Again')} className="flex-1 sm:flex-none">
@@ -400,8 +404,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                      </div>
                  )}
                  {/* Placeholder/Info for upcoming reviews */}
+                 {/* Wrap potentially hydrating elements in a div with suppressHydrationWarning */}
                  {!isDue && (
-                      <div className="text-center text-sm text-muted-foreground italic py-2">
+                      <div className="text-center text-sm text-muted-foreground italic py-2" suppressHydrationWarning>
                           Review scheduled for {displayData.nextReviewDateStr}.
                       </div>
                  )}
@@ -409,3 +414,5 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
+
+    

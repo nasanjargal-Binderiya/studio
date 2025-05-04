@@ -1,13 +1,15 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { loadProblems, updateProblem } from '@/lib/problem-store';
-import type { LeetCodeProblem } from '@/types/problem';
+import { loadProblems, updateProblem, deleteProblem, triggerProblemUpdateEvent } from '@/lib/problem-store'; // Import storage functions and trigger event
+import type { LeetCodeProblem, ReviewPerformance } from '@/types/problem';
+import { calculateNextReview } from '@/lib/srs'; // Import SRS calculation logic
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CheckCircle, Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock } from 'lucide-react';
+import { Trash2, ExternalLink, Gauge, BrainCircuit, CalendarClock, Smile, Frown, Meh, SmilePlus, Info } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -20,8 +22,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { deleteProblem } from '@/lib/problem-store'; // Import deleteProblem
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 const DifficultyBadge = ({ difficulty }: { difficulty: LeetCodeProblem['difficulty'] }) => {
@@ -34,12 +36,19 @@ const DifficultyBadge = ({ difficulty }: { difficulty: LeetCodeProblem['difficul
   return <Badge variant={variant} className="capitalize">{difficulty}</Badge>;
 };
 
+const formatDays = (days: number): string => {
+    // Handle potential NaN or undefined inputs gracefully
+    if (isNaN(days) || days === undefined || days === null) return "N/A";
+    if (days < 1) return "<1 day";
+    if (days < 30) return `${Math.round(days)} day${days >= 1.5 ? 's' : ''}`;
+    if (days < 365) return `${(days / 30).toFixed(1)} month${days >= 45 ? 's' : ''}`;
+    return `${(days / 365).toFixed(1)} year${days >= 548 ? 's' : ''}`;
+};
 
 export function ReviewList() {
   const [problems, setProblems] = useState<LeetCodeProblem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
 
   const refreshProblems = useCallback(() => {
      setIsLoading(true);
@@ -47,60 +56,45 @@ export function ReviewList() {
      if (typeof window !== 'undefined') {
          const loaded = loadProblems();
          const now = Date.now();
-         // Sort problems: due first, then upcoming, then overdue last (or adjust as needed)
+         // Sort problems: due first, then upcoming, ordered by next review date
          const sorted = loaded
-             .filter(p => p.nextReviewDate) // Ensure nextReviewDate exists
+             .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number') // Ensure nextReviewDate exists and is a number
              .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
          setProblems(sorted);
      }
      setIsLoading(false);
- }, []); // Empty dependency array ensures this runs once on mount equivalent
+ }, []);
 
   useEffect(() => {
     refreshProblems();
-    // Optional: Set up an interval to refresh periodically or listen for custom events
-     const handleStorageChange = (event: StorageEvent) => {
-       if (event.key === 'leetReviewProblems') {
-         refreshProblems();
-       }
-     };
-     window.addEventListener('storage', handleStorageChange);
 
-     // Custom event listener for when a problem is added/updated
-     const handleProblemUpdate = () => {
-        refreshProblems();
-     };
-     window.addEventListener('problemUpdated', handleProblemUpdate);
-
+    // Listen for custom event when a problem is added/updated/deleted
+    const handleProblemUpdate = () => {
+       refreshProblems();
+    };
+    window.addEventListener('problemUpdated', handleProblemUpdate);
 
      return () => {
-       window.removeEventListener('storage', handleStorageChange);
         window.removeEventListener('problemUpdated', handleProblemUpdate);
      };
   }, [refreshProblems]);
 
-   // Function to dispatch event after adding/updating problem
-   const triggerProblemUpdate = () => {
-        window.dispatchEvent(new CustomEvent('problemUpdated'));
-    };
 
-
- const handleMarkAsReviewed = (id: string) => {
+ const handleReview = (id: string, performance: ReviewPerformance) => {
     const problem = problems.find(p => p.id === id);
-    if (problem && problem.rating) {
-      const now = Date.now();
-      const nextReviewDate = now + (problem.rating * 24 * 60 * 60 * 1000);
+    if (problem) {
+      const updates = calculateNextReview(problem, performance);
       const updatedProblem: LeetCodeProblem = {
         ...problem,
-        lastReviewedDate: now,
-        nextReviewDate: nextReviewDate,
+        ...updates,
       };
       updateProblem(updatedProblem);
+      const nextReviewIntervalFormatted = formatDays(updatedProblem.interval);
       toast({
           title: "Review Recorded",
-          description: `"${problem.title || 'Problem'}" marked as reviewed. Next review on ${new Date(nextReviewDate).toLocaleDateString()}.`,
+          description: `"${problem.title || 'Problem'}" reviewed as ${performance}. Next review in ${nextReviewIntervalFormatted}.`,
       });
-      triggerProblemUpdate(); // Refresh list via event
+      triggerProblemUpdateEvent(); // Refresh list via event
     }
   };
 
@@ -112,7 +106,7 @@ export function ReviewList() {
            title: "Problem Deleted",
            description: `"${problemToDelete?.title || 'Problem'}" has been removed.`,
        });
-       triggerProblemUpdate(); // Refresh list via event
+       triggerProblemUpdateEvent(); // Refresh list via event
    };
 
   if (isLoading) {
@@ -137,48 +131,61 @@ export function ReviewList() {
 
 
   return (
-    <div className="space-y-6">
-       {dueProblems.length > 0 && (
-          <div>
-              <h3 className="text-xl font-semibold mb-3 text-destructive">Due for Review ({dueProblems.length})</h3>
-              <div className="space-y-4">
-                  {dueProblems.map((problem) => (
-                      <ProblemCard key={problem.id} problem={problem} onMarkReviewed={handleMarkAsReviewed} onDelete={handleDeleteProblem} isDue={true} />
-                  ))}
+    <TooltipProvider>
+        <div className="space-y-6">
+           {dueProblems.length > 0 && (
+              <div>
+                  <h3 className="text-xl font-semibold mb-3 text-destructive">Due for Review ({dueProblems.length})</h3>
+                  <div className="space-y-4">
+                      {dueProblems.map((problem) => (
+                          <ProblemCard key={problem.id} problem={problem} onReview={handleReview} onDelete={handleDeleteProblem} isDue={true} />
+                      ))}
+                  </div>
               </div>
-          </div>
-       )}
+           )}
 
-       {upcomingProblems.length > 0 && (
-           <div>
-               <h3 className="text-xl font-semibold mb-3 text-foreground/80">Upcoming Reviews ({upcomingProblems.length})</h3>
-               <div className="space-y-4">
-                   {upcomingProblems.map((problem) => (
-                       <ProblemCard key={problem.id} problem={problem} onMarkReviewed={handleMarkAsReviewed} onDelete={handleDeleteProblem} isDue={false}/>
-                   ))}
+           {upcomingProblems.length > 0 && (
+               <div>
+                   <h3 className="text-xl font-semibold mb-3 text-foreground/80">Upcoming Reviews ({upcomingProblems.length})</h3>
+                   <div className="space-y-4">
+                       {upcomingProblems.map((problem) => (
+                           <ProblemCard key={problem.id} problem={problem} onReview={handleReview} onDelete={handleDeleteProblem} isDue={false}/>
+                       ))}
+                   </div>
                </div>
-           </div>
-       )}
-    </div>
+           )}
+        </div>
+     </TooltipProvider>
   );
 }
 
 
 interface ProblemCardProps {
     problem: LeetCodeProblem;
-    onMarkReviewed: (id: string) => void;
+    onReview: (id: string, performance: ReviewPerformance) => void;
     onDelete: (id: string) => void;
     isDue: boolean;
 }
 
-function ProblemCard({ problem, onMarkReviewed, onDelete, isDue }: ProblemCardProps) {
-    const nextReviewDateStr = new Date(problem.nextReviewDate).toLocaleDateString();
+function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
+    const nextReviewDateStr = problem.nextReviewDate ? new Date(problem.nextReviewDate).toLocaleDateString() : 'N/A';
     const lastReviewedDateStr = problem.lastReviewedDate ? new Date(problem.lastReviewedDate).toLocaleDateString() : 'Never';
+    const currentIntervalStr = formatDays(problem.interval);
+    const easeFactorPercent = problem.easeFactor ? Math.round(problem.easeFactor * 100) : 'N/A';
+
+    // Calculate approximate next intervals for display in tooltips
+    // Handle cases where calculateNextReview might return partial data without interval
+    const nextAgainInterval = formatDays(calculateNextReview(problem, 'Again').interval ?? AGAIN_INTERVAL);
+    const nextHardInterval = formatDays(calculateNextReview(problem, 'Hard').interval ?? problem.interval * HARD_INTERVAL_MULTIPLIER);
+    const nextGoodInterval = formatDays(calculateNextReview(problem, 'Good').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR));
+    const nextEasyInterval = formatDays(calculateNextReview(problem, 'Easy').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR) * EASY_INTERVAL_BONUS);
+
 
     return (
          <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : ''}`}>
             <CardHeader className="pb-3">
               <div className="flex justify-between items-start gap-2">
+                  {/* Title, URL, Difficulty, SRS Info */}
                   <div>
                       <CardTitle className="text-lg mb-1">
                          {problem.url ? (
@@ -189,19 +196,32 @@ function ProblemCard({ problem, onMarkReviewed, onDelete, isDue }: ProblemCardPr
                               problem.title || 'Unnamed Problem'
                           )}
                       </CardTitle>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                            {problem.difficulty && <DifficultyBadge difficulty={problem.difficulty} />}
-                           {problem.rating && (
-                              <Badge variant="outline" className="flex items-center gap-1">
-                                  <CalendarClock className="h-3 w-3" /> Rating: {problem.rating} day{problem.rating > 1 ? 's' : ''}
-                              </Badge>
-                          )}
-                          <span>Next Review: {nextReviewDateStr}</span>
+                           <Tooltip delayDuration={100}>
+                                <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="flex items-center gap-1 cursor-default">
+                                        <CalendarClock className="h-3 w-3" /> Interval: {currentIntervalStr}
+                                    </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>Current review interval</TooltipContent>
+                            </Tooltip>
+                             <Tooltip delayDuration={100}>
+                                <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="flex items-center gap-1 cursor-default">
+                                        <Info className="h-3 w-3" /> Ease: {easeFactorPercent}%
+                                    </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>Current ease factor</TooltipContent>
+                            </Tooltip>
+                          <span>Next: {nextReviewDateStr}</span>
+                          <span>Last: {lastReviewedDateStr}</span>
                       </div>
                   </div>
+                  {/* Delete Button */}
                  <AlertDialog>
                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0">
+                        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive flex-shrink-0 ml-auto">
                            <Trash2 className="h-4 w-4" />
                            <span className="sr-only">Delete Problem</span>
                        </Button>
@@ -227,7 +247,8 @@ function ProblemCard({ problem, onMarkReviewed, onDelete, isDue }: ProblemCardPr
                  </AlertDialog>
               </div>
             </CardHeader>
-             <CardContent>
+             <CardContent className="pt-0">
+                 {/* Details: Complexity, Algorithm, Notes */}
                  {(problem.timeComplexity || problem.spaceComplexity || problem.algorithm || problem.notes) && (
                     <div className="space-y-2 text-sm text-muted-foreground mb-4">
                         {problem.timeComplexity && <p><Gauge className="inline h-4 w-4 mr-1" /> Time: <code className="bg-muted px-1 rounded">{problem.timeComplexity}</code></p>}
@@ -243,16 +264,50 @@ function ProblemCard({ problem, onMarkReviewed, onDelete, isDue }: ProblemCardPr
                         )}
                     </div>
                  )}
-                 <Separator className="my-3" />
-                 <div className="flex justify-between items-center">
-                     <span className="text-xs text-muted-foreground">
-                        Last Reviewed: {lastReviewedDateStr}
-                     </span>
-                     <Button size="sm" variant={isDue ? "default" : "outline"} onClick={() => onMarkReviewed(problem.id)} className={isDue ? "bg-primary hover:bg-primary/90" : ""}>
-                         <CheckCircle className="mr-2 h-4 w-4" />
-                         Mark as Reviewed
-                     </Button>
-                 </div>
+                 <Separator className="my-4" />
+                 {/* Review Action Buttons - Only show for Due items */}
+                 {isDue && (
+                     <div className="flex justify-center items-center gap-2 sm:gap-3 flex-wrap">
+                         <Tooltip delayDuration={100}>
+                             <TooltipTrigger asChild>
+                                 <Button size="sm" variant="destructive" onClick={() => onReview(problem.id, 'Again')} className="flex-1 sm:flex-none">
+                                     <Frown className="mr-1 h-4 w-4" /> Again
+                                 </Button>
+                             </TooltipTrigger>
+                             <TooltipContent>Forgot. Review in {nextAgainInterval}</TooltipContent>
+                         </Tooltip>
+                         <Tooltip delayDuration={100}>
+                             <TooltipTrigger asChild>
+                                 <Button size="sm" variant="secondary" onClick={() => onReview(problem.id, 'Hard')} className="flex-1 sm:flex-none">
+                                     <Meh className="mr-1 h-4 w-4" /> Hard
+                                 </Button>
+                             </TooltipTrigger>
+                             <TooltipContent>Recalled with difficulty. Review in {nextHardInterval}</TooltipContent>
+                         </Tooltip>
+                          <Tooltip delayDuration={100}>
+                             <TooltipTrigger asChild>
+                                 <Button size="sm" variant="default" onClick={() => onReview(problem.id, 'Good')} className="flex-1 sm:flex-none bg-primary hover:bg-primary/90">
+                                     <Smile className="mr-1 h-4 w-4" /> Good
+                                 </Button>
+                             </TooltipTrigger>
+                             <TooltipContent>Recalled correctly. Review in {nextGoodInterval}</TooltipContent>
+                         </Tooltip>
+                         <Tooltip delayDuration={100}>
+                             <TooltipTrigger asChild>
+                                 <Button size="sm" variant="outline" onClick={() => onReview(problem.id, 'Easy')} className="flex-1 sm:flex-none">
+                                     <SmilePlus className="mr-1 h-4 w-4" /> Easy
+                                 </Button>
+                             </TooltipTrigger>
+                             <TooltipContent>Recalled easily. Review in {nextEasyInterval}</TooltipContent>
+                         </Tooltip>
+                     </div>
+                 )}
+                 {/* Placeholder/Info for upcoming reviews */}
+                 {!isDue && (
+                      <div className="text-center text-sm text-muted-foreground italic py-2">
+                          Review scheduled for {nextReviewDateStr}.
+                      </div>
+                 )}
              </CardContent>
         </Card>
     );

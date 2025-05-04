@@ -18,9 +18,10 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { addProblem } from '@/lib/problem-store';
-// Update import path for types
+import { addProblem, triggerProblemUpdateEvent } from '@/lib/problem-store'; // Import trigger event
+// Update import path for types and SRS defaults
 import type { LeetCodeProblem, ProblemMetadata } from '@/types/problem';
+import { DEFAULT_EASE_FACTOR, AGAIN_INTERVAL } from '@/types/problem';
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -48,15 +49,10 @@ export function ProblemInputForm() {
          // Call the exported wrapper function
          const parsedMetadata: ProblemMetadata = await parseProblemMetadata(values.problemText);
 
-         if (!parsedMetadata.rating) {
-           toast({
-             variant: "destructive",
-             title: "Parsing Error",
-             description: "Could not find a rating (1-5). Please ensure the rating is included, e.g., 'Rating: (3)'.",
-           });
-           setIsParsing(false);
-           return;
-         }
+         // Rating is now optional for initial interval, but helpful
+         const initialRating = parsedMetadata.rating; // Can be undefined
+         const initialInterval = initialRating ?? AGAIN_INTERVAL; // Default to 1 day if no rating provided
+
           if (!parsedMetadata.url && !parsedMetadata.title) {
              toast({
                  variant: "destructive",
@@ -69,19 +65,24 @@ export function ProblemInputForm() {
 
 
          const now = Date.now();
-         // Ensure rating is defined before calculation
-         const ratingDays = parsedMetadata.rating ?? 1; // Default to 1 day if rating is somehow undefined after check
-         const nextReviewDate = now + (ratingDays * 24 * 60 * 60 * 1000); // rating in days
+         const nextReviewDate = now + (initialInterval * 24 * 60 * 60 * 1000); // First review based on interval
 
          const newProblem: LeetCodeProblem = {
            ...parsedMetadata,
            id: parsedMetadata.url || `${parsedMetadata.title}-${now}`, // Use URL as ID if available, otherwise combine title and timestamp
+           // Rating is optional on the stored object itself now
+           rating: initialRating, // Store the initial rating if provided, might be useful later
+           // Initialize SRS fields
+           interval: initialInterval,
+           easeFactor: DEFAULT_EASE_FACTOR,
+           repetitions: 0, // Start with 0 repetitions
            nextReviewDate: nextReviewDate,
            dateSolved: parsedMetadata.dateSolved || new Date(now).toLocaleDateString(), // Default to today if not parsed
-           rating: ratingDays, // Ensure rating is set in the final object
+           // lastReviewedDate is initially undefined
          };
 
          addProblem(newProblem);
+         triggerProblemUpdateEvent(); // Dispatch event
 
          toast({
            title: "Problem Added",
@@ -114,7 +115,7 @@ export function ProblemInputForm() {
                   <FormLabel>Paste Problem Details & Code</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder={`Paste your LeetCode notes here, including:\n- URL (e.g., https://leetcode.com/...)\n- Rating (e.g., Rating: (3) or just (3))\n- Date Solved (e.g., Date: 5/4)\n- Difficulty (e.g., hard, medium)\n- Complexity (e.g., Time: O(N))\n- Algorithm/Notes\n- Your code solution`}
+                      placeholder={`Paste your LeetCode notes here, including:\n- URL (e.g., https://leetcode.com/...)\n- Rating (1-5, optional, e.g., Rating: (3) or just (3)) - Sets initial review interval in days\n- Date Solved (e.g., Date: 5/4)\n- Difficulty (e.g., hard, medium)\n- Complexity (e.g., Time: O(N))\n- Algorithm/Notes\n- Your code solution`}
                       className="min-h-[250px] bg-card text-sm font-mono" // Monospaced font for code
                       {...field}
                       disabled={isPending || isParsing}

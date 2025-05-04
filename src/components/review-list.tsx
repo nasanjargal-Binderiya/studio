@@ -49,42 +49,58 @@ const formatDays = (days: number): string => {
 
 export function ReviewList() {
   const [problems, setProblems] = useState<LeetCodeProblem[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Ensure initial state is true
+  const [isLoading, setIsLoading] = useState(true); // Start as loading
+  const [dueProblems, setDueProblems] = useState<LeetCodeProblem[]>([]);
+  const [upcomingProblems, setUpcomingProblems] = useState<LeetCodeProblem[]>([]);
   const { toast } = useToast();
 
- const refreshProblems = useCallback(() => {
-    setIsLoading(true); // Set loading true at the start
+  const refreshProblems = useCallback(() => {
+    console.log("Refreshing problems..."); // Log refresh start
+    setIsLoading(true);
+    // Wrap localStorage access and Date.now() dependent logic in try/catch/finally
     try {
-      // Ensure this runs only on the client
-      if (typeof window !== 'undefined') {
-        const loaded = loadProblems();
-        const now = Date.now();
-        // Sort problems: due first, then upcoming, ordered by next review date
-        const sorted = loaded
-          .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number') // Ensure nextReviewDate exists and is a number
-          .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
-        setProblems(sorted);
-      }
+      // This logic relies on localStorage and Date.now(), so it should run client-side.
+      // The useEffect hook ensures it runs after mount.
+      const loaded = loadProblems();
+      const now = Date.now(); // Get current time *after* mount
+
+      // Filter and sort problems
+      const sorted = loaded
+        .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number')
+        .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
+
+      const due = sorted.filter(p => p.nextReviewDate <= now);
+      const upcoming = sorted.filter(p => p.nextReviewDate > now);
+
+      setProblems(sorted); // Keep the full sorted list if needed elsewhere
+      setDueProblems(due);
+      setUpcomingProblems(upcoming);
+      console.log(`Refreshed: ${due.length} due, ${upcoming.length} upcoming`);
+
     } catch (error) {
-        console.error("Failed to load problems:", error);
+        console.error("Failed to load or process problems:", error);
         toast({
             variant: "destructive",
             title: "Error Loading Problems",
             description: "Could not load review list. Please try refreshing the page.",
         });
-        setProblems([]); // Set to empty array on error
+        setProblems([]); // Reset state on error
+        setDueProblems([]);
+        setUpcomingProblems([]);
     } finally {
-        setIsLoading(false); // Set loading false after try/catch/finally block
+        setIsLoading(false); // Ensure loading is set to false
+        console.log("Finished refreshing problems."); // Log refresh end
     }
  }, [toast]); // Include toast in dependencies
 
+  // Effect for initial load and event listener setup
   useEffect(() => {
-    // Initial load
+    // Initial load happens here, after component mounts
     refreshProblems();
 
-    // Listener for updates
+    // Listener for updates triggered by adding/deleting problems
     const handleProblemUpdate = () => {
-       console.log("problemUpdated event received, refreshing list..."); // Add console log
+       console.log("problemUpdated event received, refreshing list...");
        refreshProblems();
     };
     window.addEventListener('problemUpdated', handleProblemUpdate);
@@ -93,11 +109,12 @@ export function ReviewList() {
      return () => {
         window.removeEventListener('problemUpdated', handleProblemUpdate);
      };
-  }, [refreshProblems]); // Dependency array includes refreshProblems
+    // Run only once on mount by including the stable refreshProblems callback
+  }, [refreshProblems]);
 
 
  const handleReview = (id: string, performance: ReviewPerformance) => {
-    const problem = problems.find(p => p.id === id);
+    const problem = problems.find(p => p.id === id); // Find from the main list
     if (problem) {
       const updates = calculateNextReview(problem, performance);
       const updatedProblem: LeetCodeProblem = {
@@ -110,21 +127,22 @@ export function ReviewList() {
           title: "Review Recorded",
           description: `"${problem.title || 'Problem'}" reviewed as ${performance}. Next review in ${nextReviewIntervalFormatted}.`,
       });
-      triggerProblemUpdateEvent(); // Refresh list via event
+      triggerProblemUpdateEvent(); // Refresh list via event - will call refreshProblems
     }
   };
 
    const handleDeleteProblem = (id: string) => {
-       const problemToDelete = problems.find(p => p.id === id);
+       const problemToDelete = problems.find(p => p.id === id); // Find from the main list
        deleteProblem(id);
        toast({
            variant: "destructive",
            title: "Problem Deleted",
            description: `"${problemToDelete?.title || 'Problem'}" has been removed.`,
        });
-       triggerProblemUpdateEvent(); // Refresh list via event
+       triggerProblemUpdateEvent(); // Refresh list via event - will call refreshProblems
    };
 
+  // Display loading indicator while fetching/processing
   if (isLoading) {
      return (
         <div className="flex justify-center items-center py-10">
@@ -134,6 +152,7 @@ export function ReviewList() {
      );
   }
 
+  // Display message if no problems exist after loading
   if (!isLoading && problems.length === 0) {
     return (
       <Alert>
@@ -146,11 +165,7 @@ export function ReviewList() {
     );
   }
 
-  const now = Date.now();
-  const dueProblems = problems.filter(p => p.nextReviewDate <= now);
-  const upcomingProblems = problems.filter(p => p.nextReviewDate > now);
-
-
+  // Render the lists based on the state variables populated by useEffect/refreshProblems
   return (
     <TooltipProvider>
         <div className="space-y-6">
@@ -175,13 +190,13 @@ export function ReviewList() {
                    </div>
                </div>
            )}
-           {/* Show message if there are problems but none are due or upcoming (edge case) */}
+           {/* Show message if there are problems but none are due or upcoming (e.g., after reviewing all due items) */}
            {dueProblems.length === 0 && upcomingProblems.length === 0 && problems.length > 0 && (
                  <Alert>
                     <Info className="h-4 w-4" />
                     <AlertTitle>All Caught Up!</AlertTitle>
                     <AlertDescription>
-                        You have problems stored, but none are currently due or upcoming.
+                        You have problems stored, but none are currently due or upcoming for review. Add more or check back later!
                     </AlertDescription>
                 </Alert>
            )}
@@ -199,17 +214,54 @@ interface ProblemCardProps {
 }
 
 function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
-    const nextReviewDateStr = problem.nextReviewDate ? new Date(problem.nextReviewDate).toLocaleDateString() : 'N/A';
-    const lastReviewedDateStr = problem.lastReviewedDate ? new Date(problem.lastReviewedDate).toLocaleDateString() : 'Never';
-    const currentIntervalStr = formatDays(problem.interval);
-    const easeFactorPercent = problem.easeFactor ? Math.round(problem.easeFactor * 100) : 'N/A';
+    // State to hold formatted dates/intervals calculated client-side
+    const [displayData, setDisplayData] = useState<{
+        nextReviewDateStr: string;
+        lastReviewedDateStr: string;
+        currentIntervalStr: string;
+        easeFactorPercent: string | number;
+        nextAgainInterval: string;
+        nextHardInterval: string;
+        nextGoodInterval: string;
+        nextEasyInterval: string;
+    } | null>(null);
 
-    // Calculate approximate next intervals for display in tooltips
-    // Handle cases where calculateNextReview might return partial data without interval
-    const nextAgainInterval = formatDays(calculateNextReview(problem, 'Again').interval ?? AGAIN_INTERVAL);
-    const nextHardInterval = formatDays(calculateNextReview(problem, 'Hard').interval ?? problem.interval * HARD_INTERVAL_MULTIPLIER);
-    const nextGoodInterval = formatDays(calculateNextReview(problem, 'Good').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR));
-    const nextEasyInterval = formatDays(calculateNextReview(problem, 'Easy').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR) * EASY_INTERVAL_BONUS);
+    // Calculate display strings in useEffect to avoid hydration issues
+    useEffect(() => {
+        const nextDateStr = problem.nextReviewDate ? new Date(problem.nextReviewDate).toLocaleDateString() : 'N/A';
+        const lastDateStr = problem.lastReviewedDate ? new Date(problem.lastReviewedDate).toLocaleDateString() : 'Never';
+        const intervalStr = formatDays(problem.interval);
+        const easePercent = problem.easeFactor ? Math.round(problem.easeFactor * 100) : 'N/A';
+
+        // Calculate approximate next intervals safely client-side
+        const againInt = formatDays(calculateNextReview(problem, 'Again').interval ?? AGAIN_INTERVAL);
+        const hardInt = formatDays(calculateNextReview(problem, 'Hard').interval ?? problem.interval * HARD_INTERVAL_MULTIPLIER);
+        const goodInt = formatDays(calculateNextReview(problem, 'Good').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR));
+        const easyInt = formatDays(calculateNextReview(problem, 'Easy').interval ?? problem.interval * (problem.easeFactor || DEFAULT_EASE_FACTOR) * EASY_INTERVAL_BONUS);
+
+        setDisplayData({
+            nextReviewDateStr: nextDateStr,
+            lastReviewedDateStr: lastDateStr,
+            currentIntervalStr: intervalStr,
+            easeFactorPercent: easePercent,
+            nextAgainInterval: againInt,
+            nextHardInterval: hardInt,
+            nextGoodInterval: goodInt,
+            nextEasyInterval: easyInt,
+        });
+    }, [problem]); // Recalculate when the problem data changes
+
+    // Render placeholders or loading state until displayData is ready
+    if (!displayData) {
+        // You might want a more sophisticated Skeleton loader here
+         return (
+            <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'} p-4 min-h-[150px]`}>
+                <div className="flex justify-center items-center h-full">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+            </Card>
+         );
+    }
 
 
     return (
@@ -232,7 +284,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                            <Tooltip delayDuration={100}>
                                 <TooltipTrigger asChild>
                                     <Badge variant="outline" className="flex items-center gap-1 cursor-default">
-                                        <CalendarClock className="h-3 w-3" /> Interval: {currentIntervalStr}
+                                        <CalendarClock className="h-3 w-3" /> Interval: {displayData.currentIntervalStr}
                                     </Badge>
                                 </TooltipTrigger>
                                 <TooltipContent>Current review interval</TooltipContent>
@@ -240,7 +292,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                              <Tooltip delayDuration={100}>
                                 <TooltipTrigger asChild>
                                     <Badge variant="outline" className="flex items-center gap-1 cursor-default">
-                                        <Info className="h-3 w-3" /> Ease: {easeFactorPercent}%
+                                        <Info className="h-3 w-3" /> Ease: {displayData.easeFactorPercent}%
                                     </Badge>
                                 </TooltipTrigger>
                                 <TooltipContent>Current ease factor</TooltipContent>
@@ -248,9 +300,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                            {isDue ? (
                               <span className="text-destructive font-medium">Due now</span>
                             ) : (
-                               <span>Next: {nextReviewDateStr}</span>
+                               <span>Next: {displayData.nextReviewDateStr}</span>
                             )}
-                          <span>Last: {lastReviewedDateStr}</span>
+                          <span>Last: {displayData.lastReviewedDateStr}</span>
                       </div>
                   </div>
                   {/* Delete Button */}
@@ -309,7 +361,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                      <Frown className="mr-1 h-4 w-4" /> Again
                                  </Button>
                              </TooltipTrigger>
-                             <TooltipContent>Forgot. Review in {nextAgainInterval}</TooltipContent>
+                             <TooltipContent>Forgot. Review in {displayData.nextAgainInterval}</TooltipContent>
                          </Tooltip>
                          <Tooltip delayDuration={100}>
                              <TooltipTrigger asChild>
@@ -317,7 +369,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                      <Meh className="mr-1 h-4 w-4" /> Hard
                                  </Button>
                              </TooltipTrigger>
-                             <TooltipContent>Recalled with difficulty. Review in {nextHardInterval}</TooltipContent>
+                             <TooltipContent>Recalled with difficulty. Review in {displayData.nextHardInterval}</TooltipContent>
                          </Tooltip>
                           <Tooltip delayDuration={100}>
                              <TooltipTrigger asChild>
@@ -325,7 +377,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                      <Smile className="mr-1 h-4 w-4" /> Good
                                  </Button>
                              </TooltipTrigger>
-                             <TooltipContent>Recalled correctly. Review in {nextGoodInterval}</TooltipContent>
+                             <TooltipContent>Recalled correctly. Review in {displayData.nextGoodInterval}</TooltipContent>
                          </Tooltip>
                          <Tooltip delayDuration={100}>
                              <TooltipTrigger asChild>
@@ -333,14 +385,14 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                      <SmilePlus className="mr-1 h-4 w-4" /> Easy
                                  </Button>
                              </TooltipTrigger>
-                             <TooltipContent>Recalled easily. Review in {nextEasyInterval}</TooltipContent>
+                             <TooltipContent>Recalled easily. Review in {displayData.nextEasyInterval}</TooltipContent>
                          </Tooltip>
                      </div>
                  )}
                  {/* Placeholder/Info for upcoming reviews */}
                  {!isDue && (
                       <div className="text-center text-sm text-muted-foreground italic py-2">
-                          Review scheduled for {nextReviewDateStr}.
+                          Review scheduled for {displayData.nextReviewDateStr}.
                       </div>
                  )}
              </CardContent>

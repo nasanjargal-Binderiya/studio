@@ -33,6 +33,7 @@ import {
 import { Calendar } from "@/components/ui/calendar"; // Import Calendar component
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { format } from 'date-fns';
 
 
 const DifficultyBadge = ({ difficulty }: { difficulty: LeetCodeProblem['difficulty'] }) => {
@@ -67,9 +68,21 @@ export function ReviewList() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined); // State for calendar date selection
   const { toast } = useToast();
 
-   // Memoize upcoming review dates for the calendar
-   const upcomingReviewDates = useMemo(() => {
-      return upcomingProblems.map(p => new Date(p.nextReviewDate));
+   // Memoize upcoming review dates and counts for the calendar
+   const upcomingReviewDatesWithCounts = useMemo(() => {
+      const dateCounts: Record<string, number> = {};
+      const dates: Date[] = [];
+      upcomingProblems.forEach(p => {
+          const reviewDate = new Date(p.nextReviewDate);
+          const dateString = format(reviewDate, 'yyyy-MM-dd'); // Use a consistent format for keys
+          if (dateCounts[dateString]) {
+              dateCounts[dateString]++;
+          } else {
+              dateCounts[dateString] = 1;
+              dates.push(reviewDate); // Only add the date object once
+          }
+      });
+      return { dates, counts: dateCounts };
    }, [upcomingProblems]);
 
 
@@ -234,7 +247,8 @@ export function ReviewList() {
                                 selected={selectedDate}
                                 onSelect={setSelectedDate}
                                 className="rounded-md border"
-                                modifiers={{ scheduled: upcomingReviewDates }}
+                                scheduledDatesWithCounts={upcomingReviewDatesWithCounts.counts} // Pass counts here
+                                modifiers={{ scheduled: upcomingReviewDatesWithCounts.dates }}
                                 modifiersStyles={{
                                   scheduled: { border: "2px solid hsl(var(--primary))", borderRadius: '50%' },
                                 }}
@@ -513,3 +527,4 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
+

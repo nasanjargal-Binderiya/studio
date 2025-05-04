@@ -1,20 +1,53 @@
+
 "use client"
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
+import { DayPicker, useDayRender } from "react-day-picker"
+import { format } from 'date-fns';
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>
+export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+    scheduledDatesWithCounts?: Record<string, number>; // Map of 'yyyy-MM-dd' to count
+};
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
+  scheduledDatesWithCounts = {}, // Default to empty object
   ...props
 }: CalendarProps) {
+
+  const renderDay = (day: Date, _selectedDate: Date | undefined, dayPickerProps: Parameters<typeof useDayRender>[2]) => {
+     const dateString = format(day, 'yyyy-MM-dd');
+     const count = scheduledDatesWithCounts[dateString];
+
+     // Use the default Day component from react-day-picker
+     const { DayButton } = useDayRender(day, _selectedDate, dayPickerProps);
+
+      return (
+        <div className="relative">
+             <DayButton />
+             {count && count > 0 && (
+                <Badge
+                   variant="secondary"
+                   className={cn(
+                     "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
+                     // Make badge more prominent if the date is selected or scheduled
+                     (dayPickerProps.modifiers.selected || dayPickerProps.modifiers.scheduled) && "bg-primary text-primary-foreground"
+                   )}
+                >
+                   {count}
+                </Badge>
+             )}
+        </div>
+     );
+   };
+
+
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
@@ -39,7 +72,7 @@ function Calendar({
         cell: "h-9 w-9 text-center text-sm p-0 relative [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md focus-within:relative focus-within:z-20",
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100"
+          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 relative" // Added relative positioning for badge
         ),
         day_range_end: "day-range-end",
         day_selected:
@@ -60,6 +93,8 @@ function Calendar({
         IconRight: ({ className, ...props }) => (
           <ChevronRight className={cn("h-4 w-4", className)} {...props} />
         ),
+         // Use the custom Day component wrapper
+         Day: renderDay,
       }}
       {...props}
     />
@@ -67,4 +102,9 @@ function Calendar({
 }
 Calendar.displayName = "Calendar"
 
-export { Calendar }
+// We need to export Badge from here if Calendar uses it internally
+// and Calendar is imported elsewhere. Alternatively, ensure Badge
+// is imported where Calendar is used. Let's re-export for simplicity.
+import { Badge } from "@/components/ui/badge";
+export { Calendar };
+

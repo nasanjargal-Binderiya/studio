@@ -1,3 +1,4 @@
+
 import type { LeetCodeProblem, ReviewPerformance } from '@/types/problem';
 import {
     DEFAULT_EASE_FACTOR,
@@ -24,65 +25,97 @@ export function calculateNextReview(
     let { interval, easeFactor, repetitions } = problem;
 
     // Ensure valid initial values if somehow missing (though problem-store should handle this)
-    interval = interval ?? 1; // Default to 1 day if missing
-    easeFactor = easeFactor ?? DEFAULT_EASE_FACTOR;
-    repetitions = repetitions ?? 0;
+    interval = typeof interval === 'number' && interval > 0 ? interval : 1; // Ensure interval is positive
+    easeFactor = typeof easeFactor === 'number' && easeFactor >= MIN_EASE_FACTOR ? easeFactor : DEFAULT_EASE_FACTOR;
+    repetitions = typeof repetitions === 'number' && repetitions >= 0 ? repetitions : 0;
 
     let nextInterval: number;
-    let nextEaseFactor = easeFactor;
+    let nextEaseFactor = easeFactor; // Start with current ease factor
     let nextRepetitions = repetitions;
 
     switch (performance) {
         case 'Again':
             nextInterval = AGAIN_INTERVAL;
+            // Decrease ease factor, but not below minimum
             nextEaseFactor = Math.max(MIN_EASE_FACTOR, easeFactor + AGAIN_EASE_MODIFIER);
-            nextRepetitions = 0; // Reset repetitions
+            nextRepetitions = 0; // Reset repetitions count
             break;
         case 'Hard':
-            // Calculate interval before modifying ease factor
-            nextInterval = Math.max(AGAIN_INTERVAL, Math.round(interval * HARD_INTERVAL_MULTIPLIER));
-            // Ensure Hard interval is slightly longer than previous interval if possible, but not shorter than Again
-            if (nextInterval <= interval && interval > AGAIN_INTERVAL) {
-                nextInterval = interval + 1;
+            // Calculate interval based on current interval and multiplier
+            nextInterval = Math.round(interval * HARD_INTERVAL_MULTIPLIER);
+            // Ensure Hard interval is at least slightly longer than previous, but not shorter than Again
+            if (nextInterval <= interval) {
+                nextInterval = interval + 1; // Ensure it grows by at least 1 day
             }
+             nextInterval = Math.max(AGAIN_INTERVAL, nextInterval); // Must be at least 'Again' interval
+
+            // Decrease ease factor, but not below minimum
             nextEaseFactor = Math.max(MIN_EASE_FACTOR, easeFactor + HARD_EASE_MODIFIER);
-            nextRepetitions += 1;
+            nextRepetitions += 1; // Increment repetitions
             break;
         case 'Good':
-             // First review is special case
+             // First successful review uses the initial interval from rating or default
              if (repetitions === 0) {
-                 nextInterval = interval; // Use the initial interval set by rating
+                 nextInterval = interval; // Use the interval set during creation
              } else {
-                 nextInterval = Math.max(interval + 1, Math.round(interval * easeFactor));
+                 // Subsequent reviews multiply by ease factor
+                 nextInterval = Math.round(interval * easeFactor);
              }
+            // Ensure interval increases by at least 1 day after the first review
+            if (repetitions > 0 && nextInterval <= interval) {
+                nextInterval = interval + 1;
+            }
+            nextInterval = Math.max(AGAIN_INTERVAL, nextInterval); // Must be at least 'Again' interval
+
             // Ease factor remains unchanged for "Good"
-            nextRepetitions += 1;
+            nextRepetitions += 1; // Increment repetitions
             break;
         case 'Easy':
-             // First review is special case
+             // First successful review uses initial interval times bonus
              if (repetitions === 0) {
-                // Use initial interval * bonus, ensure it's at least a few days
-                nextInterval = Math.max(interval + 2, Math.round(interval * EASY_INTERVAL_BONUS));
+                 nextInterval = Math.round(interval * EASY_INTERVAL_BONUS);
              } else {
-                nextInterval = Math.max(interval + 1, Math.round(interval * easeFactor * EASY_INTERVAL_BONUS));
+                 // Subsequent easy reviews multiply by ease factor and bonus
+                 nextInterval = Math.round(interval * easeFactor * EASY_INTERVAL_BONUS);
              }
-            nextEaseFactor = easeFactor + EASY_EASE_MODIFIER; // Increase ease factor
-            nextRepetitions += 1;
+             // Ensure interval increases by at least 1 day
+            if (nextInterval <= interval) {
+                 nextInterval = interval + 1;
+            }
+            nextInterval = Math.max(AGAIN_INTERVAL, nextInterval); // Must be at least 'Again' interval
+
+            // Increase ease factor
+            nextEaseFactor = easeFactor + EASY_EASE_MODIFIER;
+            nextRepetitions += 1; // Increment repetitions
             break;
         default:
-            throw new Error(`Invalid review performance: ${performance}`);
+            // Should not happen with TypeScript, but defensively handle it
+            console.error(`Invalid review performance: ${performance}`);
+            // Keep current state as fallback
+            nextInterval = interval;
+            nextEaseFactor = easeFactor;
+            nextRepetitions = repetitions;
+            break; // Exit switch
     }
 
-     // Ensure interval is at least 1 day
+     // Ensure interval is at least 1 day after all calculations
      nextInterval = Math.max(1, nextInterval);
 
-    const nextReviewDate = now + nextInterval * 24 * 60 * 60 * 1000;
+    // Calculate the absolute timestamp for the next review
+    // Use Math.ceil to ensure it's always at least the full interval duration away
+    const nextReviewTimestamp = now + Math.ceil(nextInterval) * 24 * 60 * 60 * 1000;
+
+    console.log(`Review Performance: ${performance}`);
+    console.log(`Previous State: interval=${interval}, easeFactor=${easeFactor}, repetitions=${repetitions}`);
+    console.log(`Next State: interval=${nextInterval}, easeFactor=${nextEaseFactor}, repetitions=${nextRepetitions}`);
+    console.log(`Next Review Date: ${new Date(nextReviewTimestamp).toLocaleDateString()}`);
+
 
     return {
         interval: nextInterval,
-        easeFactor: nextEaseFactor,
+        easeFactor: nextEaseFactor, // Return the updated ease factor
         repetitions: nextRepetitions,
-        nextReviewDate: nextReviewDate,
-        lastReviewedDate: now, // Update last reviewed date
+        nextReviewDate: nextReviewTimestamp, // Use the calculated timestamp
+        lastReviewedDate: now, // Update last reviewed date to current time
     };
 }

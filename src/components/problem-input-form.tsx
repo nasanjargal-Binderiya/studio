@@ -32,9 +32,10 @@ import { Loader2 } from "lucide-react";
 import { DialogFooter, DialogClose } from "@/components/ui/dialog"; // Import DialogFooter and DialogClose
 
 // Define the schema for the individual input fields
+// Removed title field and updated refine validation
 const formSchema = z.object({
-  title: z.string().optional(),
-  url: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')), // Allow empty string or valid URL
+  // title: z.string().optional(), // REMOVED TITLE
+  url: z.string().url({ message: "Please enter a valid LeetCode problem URL." }), // Make URL required and validated
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).optional(),
   dateSolved: z.string().optional(), // Using string for input type="date"
   // Rating description updated
@@ -44,15 +45,33 @@ const formSchema = z.object({
   algorithm: z.string().optional(),
   notes: z.string().optional(),
   code: z.string().min(1, { message: "Code solution is required." }), // Make code required
-}).refine(data => data.url || data.title, { // Ensure at least URL or Title is provided
-    message: "Either URL or Title must be provided.",
-    path: ["url"], // Attach error to URL field for visibility
-});
+}); // Removed refine for title/url combo
 
 // Add onSuccess prop to the component props
 interface ProblemInputFormProps {
   onSuccess?: () => void;
 }
+
+// Helper function to extract a sensible title from URL
+const inferTitleFromUrl = (url?: string): string | undefined => {
+    if (!url) return undefined;
+    try {
+        const urlObject = new URL(url);
+        // Handle paths like /problems/two-sum/ or /problems/two-sum
+        const pathSegments = urlObject.pathname.split('/').filter(Boolean); // Remove empty strings
+        const slug = pathSegments.pop(); // Get the last non-empty segment
+
+        if (slug && slug !== 'description' && slug !== 'solutions') { // Avoid generic segments
+            return slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+        // Fallback if no good slug found
+        return urlObject.hostname; // e.g., leetcode.com
+    } catch (e) {
+        console.warn("Could not parse title from URL:", url);
+        return undefined;
+    }
+};
+
 
 export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,7 +80,7 @@ export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: "",
+      // title: "", // REMOVED TITLE
       url: "",
       difficulty: undefined,
       dateSolved: new Date().toISOString().split('T')[0], // Default to today's date YYYY-MM-DD
@@ -77,26 +96,15 @@ export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
   async function onSubmit(values: z.infer<typeof formSchema>) {
      setIsSubmitting(true);
      try {
+
+       const inferredTitle = inferTitleFromUrl(values.url);
+
        // Directly use the structured data from the form
        const problemMetadata: ProblemMetadata = {
-         title: values.title,
-         url: values.url || undefined, // Store undefined if empty string
+         title: inferredTitle, // Use inferred title
+         url: values.url || undefined, // Store undefined if empty string (shouldn't happen due to validation)
          difficulty: values.difficulty,
          dateSolved: values.dateSolved,
-         // Rating: 1 (Hardest) -> Longer initial interval, 5 (Easiest) -> Shorter initial interval
-         // We need to invert the rating for interval calculation or adjust the logic.
-         // Let's stick to the SRS meaning: Higher rating = easier recall -> *shorter* interval needed initially might be counter-intuitive.
-         // Anki approach: Rating influences the *first* interval directly. Let's map:
-         // 1 (Again): ~10 min (handled by review buttons later)
-         // 2 (Hard): ~12 hours (not directly used for initial, but implies difficulty)
-         // 3 (Good): 1 day (default)
-         // 4 (Easy): 4 days (default)
-         // Let's use a simplified mapping for the *initial* interval based on the rating:
-         // 5 (Easiest): Interval = 4 days
-         // 4: Interval = 3 days
-         // 3 (Good): Interval = 2 days
-         // 2: Interval = 1 day
-         // 1 (Hardest): Interval = 1 day (or less, maybe handled by immediate re-review flag - let's stick to 1 day min for scheduling)
          rating: values.rating, // Store the raw rating (1-5)
          timeComplexity: values.timeComplexity,
          spaceComplexity: values.spaceComplexity,
@@ -125,36 +133,11 @@ export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
         // Next review date is based *only* on the initial interval from rating
        const nextReviewDate = solvedTimestamp + (initialInterval * 24 * 60 * 60 * 1000);
 
-       // Infer title from URL if title is missing and URL is present
-       if (!problemMetadata.title && problemMetadata.url) {
-         try {
-           const urlObject = new URL(problemMetadata.url);
-           const urlParts = urlObject.pathname.split('/');
-           const slug = urlParts.filter(part => part !== '').pop();
-           if (slug) {
-             problemMetadata.title = slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-           }
-         } catch (e) {
-           console.warn("Could not parse title from URL:", problemMetadata.url);
-           // Don't block submission if parsing fails, rely on validation below
-         }
-       }
-
-        // Re-check validation (should be caught by refine, but good practice)
-        if (!problemMetadata.title && !problemMetadata.url) {
-             toast({
-                 variant: "destructive",
-                 title: "Missing Information",
-                 description: "Please provide either a URL or a Title for the problem.",
-             });
-             setIsSubmitting(false);
-             return;
-         }
-
 
        const newProblem: LeetCodeProblem = {
          ...problemMetadata,
-         id: problemMetadata.url || `${problemMetadata.title}-${now}`, // Use URL as ID if available
+         id: problemMetadata.url, // Use validated URL as the unique ID
+         title: inferredTitle || problemMetadata.url, // Ensure title is set
          rating: problemMetadata.rating, // Store the initial rating (1-5)
          interval: initialInterval, // Store the calculated initial interval
          easeFactor: DEFAULT_EASE_FACTOR, // Start with default ease
@@ -170,7 +153,8 @@ export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
 
        toast({
          title: "Problem Added",
-         description: `"${newProblem.title || 'Problem'}" scheduled for review on ${new Date(newProblem.nextReviewDate).toLocaleDateString()}.`,
+         // Use inferred title or URL in toast
+         description: `"${newProblem.title}" scheduled for review on ${new Date(newProblem.nextReviewDate).toLocaleDateString()}.`,
        });
        form.reset(); // Clear the form
        onSuccess?.(); // Call the success callback to close the modal
@@ -193,35 +177,35 @@ export function ProblemInputForm({ onSuccess }: ProblemInputFormProps) {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4"> {/* Add padding top */}
         {/* Form Content - Removed CardContent wrapper */}
         <div className="space-y-4 px-1 max-h-[calc(90vh-200px)] overflow-y-auto pr-3"> {/* Scrollable area for content */}
-          {/* URL and Title */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>URL</FormLabel>
-                  <FormControl>
-                    <Input placeholder="https://leetcode.com/problems/..." {...field} type="url" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Two Sum" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          {/* URL - Now the primary identifier */}
+          <FormField
+            control={form.control}
+            name="url"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>LeetCode Problem URL</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://leetcode.com/problems/..." {...field} type="url" />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {/* REMOVED TITLE FIELD */}
+          {/* <FormField
+            control={form.control}
+            name="title"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Title</FormLabel>
+                <FormControl>
+                  <Input placeholder="Two Sum" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          /> */}
+
 
           {/* Difficulty, Rating, Date Solved */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

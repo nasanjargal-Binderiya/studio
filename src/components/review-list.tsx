@@ -32,7 +32,9 @@ import {
 import { Calendar } from "@/components/ui/calendar"; // Import Calendar component
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns'; // Import isValid
+import ReactMarkdown from 'react-markdown'; // Import react-markdown
+import remarkGfm from 'remark-gfm'; // Import remark-gfm for GitHub Flavored Markdown (code blocks)
 
 
 const DifficultyBadge = ({ difficulty }: { difficulty: LeetCodeProblem['difficulty'] }) => {
@@ -72,13 +74,23 @@ export function ReviewList() {
       const dateCounts: Record<string, number> = {};
       const dates: Date[] = [];
       upcomingProblems.forEach(p => {
-          const reviewDate = new Date(p.nextReviewDate);
-          const dateString = format(reviewDate, 'yyyy-MM-dd'); // Use a consistent format for keys
-          if (dateCounts[dateString]) {
-              dateCounts[dateString]++;
+          // Ensure nextReviewDate is a valid number (timestamp)
+          if (typeof p.nextReviewDate === 'number' && !isNaN(p.nextReviewDate)) {
+              const reviewDate = new Date(p.nextReviewDate);
+              // Double-check date validity after creation
+              if (isValid(reviewDate)) {
+                  const dateString = format(reviewDate, 'yyyy-MM-dd'); // Use a consistent format for keys
+                  if (dateCounts[dateString]) {
+                      dateCounts[dateString]++;
+                  } else {
+                      dateCounts[dateString] = 1;
+                      dates.push(reviewDate); // Only add the date object once
+                  }
+              } else {
+                 console.warn("Invalid date encountered for problem:", p.id, p.nextReviewDate);
+              }
           } else {
-              dateCounts[dateString] = 1;
-              dates.push(reviewDate); // Only add the date object once
+              console.warn("Invalid or missing nextReviewDate for problem:", p.id, p.nextReviewDate);
           }
       });
       return { dates, counts: dateCounts };
@@ -95,9 +107,9 @@ export function ReviewList() {
       const loaded = loadProblems();
       const now = Date.now(); // Get current time *after* mount
 
-      // Filter and sort problems
+      // Filter and sort problems, ensuring nextReviewDate is valid
       const sorted = loaded
-        .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number')
+        .filter(p => p.nextReviewDate && typeof p.nextReviewDate === 'number' && !isNaN(p.nextReviewDate) && isValid(new Date(p.nextReviewDate)))
         .sort((a, b) => a.nextReviewDate - b.nextReviewDate);
 
       const todayStart = new Date();
@@ -234,7 +246,7 @@ export function ReviewList() {
           {upcomingProblems.length > 0 && (
              <Accordion type="single" collapsible className="w-full" defaultValue="upcoming-list">
                 <AccordionItem value="upcoming-list" className="border-b-0">
-                   <AccordionTrigger className="text-xl font-semibold mb-1 text-foreground/80 hover:no-underline justify-start gap-2 py-2">
+                   <AccordionTrigger className="text-xl font-semibold mb-1 text-foreground/80 hover:no-underline justify-start gap-2 py-2 group"> {/* Added group class */}
                         Upcoming Reviews ({upcomingProblems.length})
                         <CalendarIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
                    </AccordionTrigger>
@@ -252,7 +264,8 @@ export function ReviewList() {
                                 modifiersStyles={{
                                   scheduled: { border: "2px solid hsl(var(--primary))", borderRadius: '50%' },
                                 }}
-                                disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))} // Disable past dates
+                                // Disable past dates, ensure date check is valid
+                                disabled={(date) => isValid(date) && date < new Date(new Date().setHours(0, 0, 0, 0))}
                                 // Add footer to clear selection
                                 footer={
                                   selectedDate && (
@@ -277,8 +290,10 @@ export function ReviewList() {
                                       <CalendarIcon className="h-4 w-4" />
                                       <AlertTitle>No Reviews Scheduled</AlertTitle>
                                       <AlertDescription>
-                                         {selectedDate
+                                         {selectedDate && isValid(selectedDate)
                                             ? `No problems scheduled for review on ${selectedDate.toLocaleDateString()}.`
+                                            : selectedDate // Handle case where selectedDate might be invalid somehow
+                                            ? "Invalid date selected."
                                             : "No upcoming problems found."}
                                       </AlertDescription>
                                   </Alert>
@@ -318,6 +333,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
     const [displayData, setDisplayData] = useState<{
         nextReviewDateStr: string;
         lastReviewedDateStr: string;
+        dateSolvedStr: string; // Added for solved date
         currentIntervalStr: string;
         easeFactorPercent: string | number;
         nextAgainInterval: string;
@@ -328,14 +344,19 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
 
     // Calculate display strings in useEffect to avoid hydration issues
     useEffect(() => {
-        const nextDateStr = problem.nextReviewDate ? new Date(problem.nextReviewDate).toLocaleDateString() : 'N/A';
-        const lastDateStr = problem.lastReviewedDate ? new Date(problem.lastReviewedDate).toLocaleDateString() : 'Never';
+        const nextDate = problem.nextReviewDate && isValid(new Date(problem.nextReviewDate)) ? new Date(problem.nextReviewDate) : null;
+        const lastDate = problem.lastReviewedDate && isValid(new Date(problem.lastReviewedDate)) ? new Date(problem.lastReviewedDate) : null;
+        const solvedDate = problem.dateSolved && isValid(new Date(problem.dateSolved)) ? new Date(problem.dateSolved) : null; // Validate solved date too
+
+        const nextDateStr = nextDate ? nextDate.toLocaleDateString() : 'N/A';
+        const lastDateStr = lastDate ? lastDate.toLocaleDateString() : 'Never';
+        const solvedDateStr = solvedDate ? solvedDate.toLocaleDateString() : 'N/A'; // Format solved date
+
         const intervalStr = formatDays(problem.interval);
         const easePercent = problem.easeFactor ? Math.round(problem.easeFactor * 100) : 'N/A';
 
         // Calculate approximate next intervals safely client-side
-        // Ensure problem object passed is valid and has necessary properties
-        const tempProblemForCalc = { // Create a temporary object with defaults if needed
+        const tempProblemForCalc = {
             ...problem,
             interval: problem.interval ?? 1,
             easeFactor: problem.easeFactor ?? DEFAULT_EASE_FACTOR,
@@ -350,6 +371,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         setDisplayData({
             nextReviewDateStr: nextDateStr,
             lastReviewedDateStr: lastDateStr,
+            dateSolvedStr: solvedDateStr, // Add solved date string
             currentIntervalStr: intervalStr,
             easeFactorPercent: easePercent,
             nextAgainInterval: againInt,
@@ -361,12 +383,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
 
     // Render placeholders or loading state until displayData is ready
     if (!displayData) {
-        // You might want a more sophisticated Skeleton loader here
          return (
             <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'} p-4 min-h-[150px]`}>
-                {/* Add suppressHydrationWarning here as well for consistency */}
                 <div className="flex justify-center items-center h-full" suppressHydrationWarning>
-                    {/* Add suppressHydrationWarning here as well */}
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" suppressHydrationWarning />
                 </div>
             </Card>
@@ -414,7 +433,8 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                <span>Next: {displayData.nextReviewDateStr}</span>
                             )}
                           <span>Last: {displayData.lastReviewedDateStr}</span>
-                          {problem.dateSolved && <span>Solved: new Date(problem.dateSolved).toLocaleDateString()</span>}
+                          {/* Display formatted solved date */}
+                          {problem.dateSolved && <span>Solved: {displayData.dateSolvedStr}</span>}
                       </div>
                   </div>
                   {/* Delete Button */}
@@ -468,10 +488,25 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                   <span className="flex items-center gap-1"><Code className="h-4 w-4"/>Show Code</span>
                                 </AccordionTrigger>
                                 <AccordionContent className="border border-t-0 border-muted rounded-b-md bg-background p-0 shadow-inner">
-                                    {/* Notion-like code block styling */}
-                                    <pre className="p-4 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono bg-muted/30 rounded-b-md m-0 border-none">
-                                        <code className="block">{problem.code}</code>
-                                    </pre>
+                                    {/* Use ReactMarkdown for rendering code block */}
+                                    <div className="p-4 max-h-60 overflow-y-auto bg-muted/30 rounded-b-md m-0 border-none prose prose-sm dark:prose-invert max-w-none">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                                          // Customize code block rendering if needed
+                                          code(props) {
+                                            const {children, className, node, ...rest} = props
+                                            const match = /language-(\w+)/.exec(className || '')
+                                            return match ? (
+                                              // Add syntax highlighting library here if desired
+                                              <pre className={cn("!bg-transparent !p-0 overflow-x-auto", className)} {...rest}><code>{children}</code></pre>
+                                            ) : (
+                                              <pre className={cn("!bg-transparent !p-0 overflow-x-auto", className)} {...rest}><code>{children}</code></pre>
+                                            )
+                                          }
+                                      }}>
+                                        {/* Wrap code in triple backticks for GFM */}
+                                        {`\`\`\`\n${problem.code}\n\`\`\``}
+                                      </ReactMarkdown>
+                                    </div>
                                 </AccordionContent>
                               </AccordionItem>
                             </Accordion>

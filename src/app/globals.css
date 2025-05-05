@@ -41,6 +41,41 @@ body {
     --sidebar-accent-foreground: 138 61% 40%; /* Teal */
     --sidebar-border: 210 17% 85%; /* Border color */
     --sidebar-ring: 138 61% 40%; /* Teal */
+    /* Prose colors */
+    --prose-body: hsl(var(--foreground));
+    --prose-headings: hsl(var(--foreground));
+    --prose-lead: hsl(var(--foreground));
+    --prose-links: hsl(var(--primary));
+    --prose-bold: hsl(var(--foreground));
+    --prose-counters: hsl(var(--muted-foreground));
+    --prose-bullets: hsl(var(--border));
+    --prose-hr: hsl(var(--border));
+    --prose-quotes: hsl(var(--foreground));
+    --prose-quote-borders: hsl(var(--border));
+    --prose-captions: hsl(var(--muted-foreground));
+    --prose-code: hsl(var(--foreground));
+    --prose-pre-code: hsl(var(--foreground));
+    --prose-pre-bg: hsl(var(--muted));
+    --prose-th-borders: hsl(var(--border));
+    --prose-td-borders: hsl(var(--border));
+
+    /* Dark mode prose */
+    --prose-invert-body: hsl(var(--foreground));
+    --prose-invert-headings: hsl(var(--foreground));
+    --prose-invert-lead: hsl(var(--foreground));
+    --prose-invert-links: hsl(var(--primary));
+    --prose-invert-bold: hsl(var(--foreground));
+    --prose-invert-counters: hsl(var(--muted-foreground));
+    --prose-invert-bullets: hsl(var(--border));
+    --prose-invert-hr: hsl(var(--border));
+    --prose-invert-quotes: hsl(var(--foreground));
+    --prose-invert-quote-borders: hsl(var(--border));
+    --prose-invert-captions: hsl(var(--muted-foreground));
+    --prose-invert-code: hsl(var(--foreground));
+    --prose-invert-pre-code: hsl(var(--foreground));
+    --prose-invert-pre-bg: hsl(var(--muted));
+    --prose-invert-th-borders: hsl(var(--border));
+    --prose-invert-td-borders: hsl(var(--border));
   }
   .dark {
     /* Define dark mode colors if needed, otherwise use light mode defaults */
@@ -76,6 +111,23 @@ body {
     --sidebar-accent-foreground: 138 61% 50%;
     --sidebar-border: 210 13% 25%;
     --sidebar-ring: 138 61% 50%;
+    /* Dark mode prose */
+    --prose-body: hsl(var(--foreground));
+    --prose-headings: hsl(var(--foreground));
+    --prose-lead: hsl(var(--foreground));
+    --prose-links: hsl(var(--primary));
+    --prose-bold: hsl(var(--foreground));
+    --prose-counters: hsl(var(--muted-foreground));
+    --prose-bullets: hsl(var(--border));
+    --prose-hr: hsl(var(--border));
+    --prose-quotes: hsl(var(--foreground));
+    --prose-quote-borders: hsl(var(--border));
+    --prose-captions: hsl(var(--muted-foreground));
+    --prose-code: hsl(var(--foreground));
+    --prose-pre-code: hsl(var(--foreground));
+    --prose-pre-bg: hsl(var(--muted));
+    --prose-th-borders: hsl(var(--border));
+    --prose-td-borders: hsl(var(--border));
   }
 }
 
@@ -90,4 +142,59 @@ body {
   code, pre {
     font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
   }
+  /* Basic prose styling for markdown */
+  .prose {
+    color: var(--prose-body);
+  }
+  .prose code {
+    color: var(--prose-code);
+    font-weight: 600;
+    font-size: 0.875em; /* Slightly smaller for inline code */
+    background-color: var(--prose-pre-bg); /* Muted background for inline code */
+    padding: 0.2em 0.4em;
+    margin: 0;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .prose pre {
+    color: var(--prose-pre-code);
+    background-color: var(--prose-pre-bg);
+    overflow-x: auto;
+    border-radius: var(--radius); /* Use theme radius */
+    padding: 1em; /* Add padding to pre block */
+    margin-top: 1.6em; /* Add space above */
+    margin-bottom: 1.6em; /* Add space below */
+    font-size: 0.875em; /* Match textarea font size */
+    line-height: 1.7142857; /* Consistent line height */
+  }
+  .prose pre code {
+    background-color: transparent;
+    border-width: 0;
+    border-radius: 0;
+    padding: 0;
+    font-weight: inherit;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    line-height: inherit;
+    white-space: pre; /* Preserve whitespace in code block */
+  }
+  /* Dark mode prose */
+  .dark .prose {
+    color: var(--prose-invert-body);
+  }
+  .dark .prose code {
+    color: var(--prose-invert-code);
+    background-color: var(--prose-invert-pre-bg);
+  }
+  .dark .prose pre {
+    color: var(--prose-invert-pre-code);
+    background-color: var(--prose-invert-pre-bg);
+  }
+  .dark .prose pre code {
+    color: inherit;
+    background-color: transparent;
+  }
+
 }
+

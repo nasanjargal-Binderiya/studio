@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -15,41 +16,52 @@ export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
 };
 
 // Define the CustomDay component props more explicitly
-interface CustomDayProps {
-    date: Date;
-    displayMonth: Date;
+// Use DayProps and add our custom prop
+interface CustomDayProps extends DayProps {
     scheduledDatesWithCounts?: Record<string, number>;
 }
 
 
 // Define the CustomDay component
-function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: CustomDayProps) {
-    // Call useDayRender inside the custom component
-    // Ensure day and displayMonth are valid Date objects before passing to useDayRender
-    if (!isValid(day) || !isValid(displayMonth)) {
+function CustomDay({ date, displayMonth, scheduledDatesWithCounts = {} }: CustomDayProps) {
+    const ref = React.useRef<HTMLButtonElement | HTMLDivElement>(null); // Create a ref
+
+    // Ensure day and displayMonth are valid Date objects before processing
+    if (!isValid(date) || !isValid(displayMonth)) {
         // Handle invalid dates gracefully, maybe return a placeholder or null
         // Returning null might be simplest if invalid dates shouldn't be rendered
-        return null;
+        console.warn("Rendering CustomDay with invalid date or displayMonth", { date, displayMonth });
+        // Render a disabled placeholder or null
+         return <div className={cn(
+             buttonVariants({ variant: "ghost" }),
+             "h-9 w-9 p-0 font-normal text-muted-foreground opacity-50" // Style similar to disabled day
+         )}></div>;
     }
 
-    const { buttonProps, dayProps, isButton, divProps } = useDayRender(day, displayMonth);
+    // Call useDayRender inside the custom component, passing the ref
+    const { buttonProps, dayProps: rdpDayProps, isButton, divProps } = useDayRender(date, displayMonth, ref);
 
-    const dateString = format(day, 'yyyy-MM-dd');
+    const dateString = format(date, 'yyyy-MM-dd');
     const count = scheduledDatesWithCounts[dateString];
+
+    // Check if rdpDayProps and modifiers exist before accessing them
+    const hasModifiers = rdpDayProps && rdpDayProps.modifiers;
+    const isSelectedOrScheduled = hasModifiers && (rdpDayProps.modifiers.selected || rdpDayProps.modifiers.scheduled);
+
 
     // Render the default button or div with the badge if there's a count
     if (isButton) {
         return (
             <div className="relative">
-                {/* Check if buttonProps/dayProps exist before spreading */}
-                <button {...buttonProps} {...dayProps} />
+                 {/* Attach ref and spread props */}
+                <button ref={ref as React.RefObject<HTMLButtonElement>} {...buttonProps} {...rdpDayProps} />
                 {count && count > 0 && (
                    <Badge
                       variant="secondary"
                       className={cn(
                         "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
-                        // Safely access modifiers only if dayProps exists
-                        (dayProps?.modifiers?.selected || dayProps?.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                        // Make badge more prominent if the date is selected or scheduled
+                        isSelectedOrScheduled && "bg-primary text-primary-foreground"
                       )}
                    >
                       {count}
@@ -61,15 +73,14 @@ function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: C
     // If not a button (e.g., outside day), render the div
     return (
         <div className="relative">
-            {/* Check if divProps/dayProps exist before spreading */}
-            <div {...divProps} {...dayProps} />
+             {/* Attach ref and spread props */}
+            <div ref={ref as React.RefObject<HTMLDivElement>} {...divProps} {...rdpDayProps} />
             {count && count > 0 && (
                <Badge
                   variant="secondary"
                   className={cn(
                     "absolute -top-1 -right-1 h-4 w-4 p-0 flex items-center justify-center text-xs rounded-full pointer-events-none",
-                    // Safely access modifiers only if dayProps exists
-                    (dayProps?.modifiers?.selected || dayProps?.modifiers?.scheduled) && "bg-primary text-primary-foreground"
+                    isSelectedOrScheduled && "bg-primary text-primary-foreground"
                   )}
                >
                   {count}
@@ -135,8 +146,7 @@ function Calendar({
         // Pass only necessary props to CustomDay explicitly
         Day: (dayProps: DayProps) => (
            <CustomDay
-             date={dayProps.date}
-             displayMonth={dayProps.displayMonth}
+             {...dayProps} // Pass all props from DayProps
              scheduledDatesWithCounts={scheduledDatesWithCounts}
            />
          ),

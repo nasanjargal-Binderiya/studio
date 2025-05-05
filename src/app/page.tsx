@@ -32,8 +32,8 @@ export default function HomePage() {
            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}> {/* Control dialog state */}
               {/* Add suppressHydrationWarning here as it contains the button causing issues */}
               <DialogTrigger asChild suppressHydrationWarning>
-                {/* Add suppressHydrationWarning to potentially problematic area */}
-                <Button suppressHydrationWarning>
+                {/* Remove suppressHydrationWarning from Button, keep it on trigger */}
+                <Button>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add New Problem
                 </Button>
               </DialogTrigger>
@@ -57,4 +57,3 @@ export default function HomePage() {
     </div>
   );
 }
-

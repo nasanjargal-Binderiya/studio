@@ -125,9 +125,9 @@ body {
     --prose-captions: hsl(var(--muted-foreground));
     --prose-code: hsl(var(--foreground));
     --prose-pre-code: hsl(var(--foreground));
-    --prose-pre-bg: hsl(var(--muted));
-    --prose-th-borders: hsl(var(--border));
-    --prose-td-borders: hsl(var(--border));
+    --prose-invert-pre-bg: hsl(var(--muted));
+    --prose-invert-th-borders: hsl(var(--border));
+    --prose-invert-td-borders: hsl(var(--border));
   }
 }
 
@@ -158,10 +158,10 @@ body {
   }
   .prose pre {
     color: var(--prose-pre-code);
-    background-color: var(--prose-pre-bg);
+    /* background-color: var(--prose-pre-bg); REMOVED: Handled by SyntaxHighlighter */
     overflow-x: auto;
     border-radius: var(--radius); /* Use theme radius */
-    padding: 1em; /* Add padding to pre block */
+    /* padding: 1em; REMOVED: Handled by SyntaxHighlighter */
     margin-top: 1.6em; /* Add space above */
     margin-bottom: 1.6em; /* Add space below */
     font-size: 0.875em; /* Match textarea font size */
@@ -189,7 +189,7 @@ body {
   }
   .dark .prose pre {
     color: var(--prose-invert-pre-code);
-    background-color: var(--prose-invert-pre-bg);
+    /* background-color: var(--prose-invert-pre-bg); REMOVED */
   }
   .dark .prose pre code {
     color: inherit;
@@ -197,4 +197,3 @@ body {
   }
 
 }
-

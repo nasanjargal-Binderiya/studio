@@ -141,8 +141,8 @@ export default {
              '--tw-prose-quote-borders': theme('colors.prose.quote-borders'),
              '--tw-prose-captions': theme('colors.prose.captions'),
              '--tw-prose-code': theme('colors.prose.code'),
-             '--tw-prose-pre-code': theme('colors.prose.pre-code'),
-             '--tw-prose-pre-bg': theme('colors.prose.pre-bg'),
+             '--tw-prose-pre-code': theme('colors.prose.pre-code'), // Still useful for SyntaxHighlighter text color
+             '--tw-prose-pre-bg': theme('colors.prose.pre-bg'), // Still useful for SyntaxHighlighter background
              '--tw-prose-th-borders': theme('colors.prose.th-borders'),
              '--tw-prose-td-borders': theme('colors.prose.td-borders'),
              '--tw-prose-invert-body': theme('colors.prose.invert.body'),
@@ -164,30 +164,12 @@ export default {
              // Base font size
              fontSize: '0.875rem', // 14px, matching textarea/input sm
              lineHeight: '1.5',
-             // Code block specific styles
-             'pre': {
-                fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace',
-                padding: theme('spacing.4'),
-                borderRadius: theme('borderRadius.md'),
-                marginTop: theme('spacing.4'),
-                marginBottom: theme('spacing.4'),
-              },
-             'code::before': { content: '""' }, // Remove backticks from inline code
-             'code::after': { content: '""' },
-             'code': {
-                fontWeight: '500',
-                fontSize: '0.875em', // Slightly smaller than base
-                padding: '0.2em 0.4em',
-                borderRadius: theme('borderRadius.sm'),
-             },
-             'pre code': {
-                padding: '0',
-                fontSize: 'inherit', // Inherit from pre
-                fontWeight: 'inherit',
-                backgroundColor: 'transparent',
-                borderRadius: '0',
-                borderWidth: '0',
-             },
+             // Remove default pre/code styles that conflict with SyntaxHighlighter
+             'pre': false,
+             'code': false,
+             'code::before': false,
+             'code::after': false,
+             'pre code': false,
            },
          },
        }),

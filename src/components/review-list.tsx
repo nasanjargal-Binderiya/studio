@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -36,6 +35,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { format, isValid } from 'date-fns'; // Import isValid
 import ReactMarkdown from 'react-markdown'; // Import react-markdown
 import remarkGfm from 'remark-gfm'; // Import remark-gfm for GitHub Flavored Markdown (code blocks)
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'; // Import SyntaxHighlighter
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Import a style (e.g., atomDark)
 import { cn } from "@/lib/utils"; // Import cn utility
 
 
@@ -490,25 +491,25 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                   <span className="flex items-center gap-1"><Code className="h-4 w-4"/>Show Code</span>
                                 </AccordionTrigger>
                                 <AccordionContent className="border border-t-0 border-muted rounded-b-md bg-background p-0 shadow-inner">
-                                    {/* Use ReactMarkdown for rendering code block */}
-                                    <div className="p-4 max-h-60 overflow-y-auto bg-muted/30 rounded-b-md m-0 border-none prose prose-sm dark:prose-invert max-w-none">
-                                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                                          // Customize code block rendering if needed
-                                          code(props) {
-                                            const {children, className, node, ...rest} = props
-                                            const match = /language-(\w+)/.exec(className || '')
-                                            return match ? (
-                                              // Add syntax highlighting library here if desired
-                                              <pre className={cn("!bg-transparent !p-0 overflow-x-auto", className)} {...rest}><code>{children}</code></pre>
-                                            ) : (
-                                              <pre className={cn("!bg-transparent !p-0 overflow-x-auto", className)} {...rest}><code>{children}</code></pre>
-                                            )
-                                          }
-                                      }}>
-                                        {/* Wrap code in triple backticks for GFM */}
-                                        {`\`\`\`\n${problem.code}\n\`\`\``}
-                                      </ReactMarkdown>
-                                    </div>
+                                     {/* Use SyntaxHighlighter for code block styling */}
+                                     <SyntaxHighlighter
+                                        language="python" // Assuming python, adjust as needed or detect dynamically
+                                        style={atomDark} // Use a desired theme
+                                        customStyle={{
+                                            margin: 0,
+                                            padding: '1rem', // Add padding
+                                            borderRadius: '0 0 0.5rem 0.5rem', // Round bottom corners
+                                            backgroundColor: 'hsl(var(--muted))', // Match prose pre bg
+                                            fontSize: '0.875em', // Match prose pre font size
+                                            maxHeight: '15rem', // Limit height and make scrollable
+                                            overflowY: 'auto',
+                                        }}
+                                        codeTagProps={{ style: { fontFamily: 'inherit', fontSize: 'inherit' } }} // Ensure consistent font
+                                        wrapLines={true}
+                                        showLineNumbers={false} // Optionally show line numbers
+                                      >
+                                        {problem.code}
+                                      </SyntaxHighlighter>
                                 </AccordionContent>
                               </AccordionItem>
                             </Accordion>
@@ -565,5 +566,3 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
-
-    

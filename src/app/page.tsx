@@ -30,11 +30,12 @@ export default function HomePage() {
       <main className="flex-grow container mx-auto px-4 py-8">
         <div className="mb-6 flex justify-end"> {/* Add margin bottom and flex container for the button */}
            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}> {/* Control dialog state */}
-              {/* Add suppressHydrationWarning here as it contains the button causing issues */}
+              {/* Keep suppressHydrationWarning on trigger */}
               <DialogTrigger asChild suppressHydrationWarning>
-                {/* Remove suppressHydrationWarning from Button, keep it on trigger */}
-                <Button>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add New Problem
+                {/* Keep suppressHydrationWarning on Button */}
+                <Button suppressHydrationWarning>
+                  {/* Add suppressHydrationWarning directly to the icon */}
+                  <PlusCircle className="mr-2 h-4 w-4" suppressHydrationWarning /> Add New Problem
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"> {/* Adjust max width and height */}

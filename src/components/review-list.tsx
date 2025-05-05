@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -428,7 +429,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                         <Info className="h-3 w-3" /> Ease: {displayData.easeFactorPercent}%
                                     </Badge>
                                 </TooltipTrigger>
-                                <TooltipContent>Current ease factor</TooltipContent>
+                                <TooltipContent>
+                                  Ease Factor: This value affects how quickly the review interval grows. Higher values mean longer intervals.
+                                </TooltipContent>
                             </Tooltip>
                            {isDue ? (
                               <span className="text-destructive font-medium">Due now</span>
@@ -566,3 +569,5 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
+
+

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -15,23 +14,26 @@ export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
     scheduledDatesWithCounts?: Record<string, number>; // Map of 'yyyy-MM-dd' to count
 };
 
-// Define the CustomDay component
-function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: DayProps & { scheduledDatesWithCounts?: Record<string, number> }) {
-    // Call useDayRender inside the custom component
-    const { buttonProps, dayProps, isButton, divProps } = useDayRender(day, displayMonth);
+// Define the CustomDay component props more explicitly
+interface CustomDayProps {
+    date: Date;
+    displayMonth: Date;
+    scheduledDatesWithCounts?: Record<string, number>;
+}
 
-    // Ensure day is a valid Date object before formatting
-    if (!isValid(day)) {
-        // Render the default button or div if the date is invalid
-        // Check if isButton before accessing buttonProps/dayProps
-        if (isButton) {
-           return <button {...buttonProps} {...dayProps} />;
-        }
-        // Check if divProps/dayProps exist before spreading
-        return <div {...divProps} {...dayProps} />;
+
+// Define the CustomDay component
+function CustomDay({ date: day, displayMonth, scheduledDatesWithCounts = {} }: CustomDayProps) {
+    // Call useDayRender inside the custom component
+    // Ensure day and displayMonth are valid Date objects before passing to useDayRender
+    if (!isValid(day) || !isValid(displayMonth)) {
+        // Handle invalid dates gracefully, maybe return a placeholder or null
+        // Returning null might be simplest if invalid dates shouldn't be rendered
+        return null;
     }
 
-    // If day is valid, proceed
+    const { buttonProps, dayProps, isButton, divProps } = useDayRender(day, displayMonth);
+
     const dateString = format(day, 'yyyy-MM-dd');
     const count = scheduledDatesWithCounts[dateString];
 
@@ -130,8 +132,14 @@ function Calendar({
         IconRight: ({ className, ...props }) => (
           <ChevronRight className={cn("h-4 w-4", className)} {...props} />
         ),
-        // Pass the custom Day component with props
-        Day: (dayProps) => <CustomDay {...dayProps} scheduledDatesWithCounts={scheduledDatesWithCounts} />,
+        // Pass only necessary props to CustomDay explicitly
+        Day: (dayProps: DayProps) => (
+           <CustomDay
+             date={dayProps.date}
+             displayMonth={dayProps.displayMonth}
+             scheduledDatesWithCounts={scheduledDatesWithCounts}
+           />
+         ),
       }}
       {...props}
     />

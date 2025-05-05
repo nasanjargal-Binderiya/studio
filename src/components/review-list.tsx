@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -197,6 +196,7 @@ export function ReviewList() {
      return (
         // Add suppressHydrationWarning here
         <div className="flex justify-center items-center py-10" suppressHydrationWarning>
+             {/* Add suppressHydrationWarning here as well */}
              <Loader2 className="h-8 w-8 animate-spin text-primary" suppressHydrationWarning />
              <span className="ml-3 text-muted-foreground">Loading review problems...</span>
          </div>
@@ -366,6 +366,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
             <Card className={`shadow-sm ${isDue ? 'border-destructive border-2' : 'border-border'} p-4 min-h-[150px]`}>
                 {/* Add suppressHydrationWarning here as well for consistency */}
                 <div className="flex justify-center items-center h-full" suppressHydrationWarning>
+                    {/* Add suppressHydrationWarning here as well */}
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" suppressHydrationWarning />
                 </div>
             </Card>
@@ -413,7 +414,7 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                <span>Next: {displayData.nextReviewDateStr}</span>
                             )}
                           <span>Last: {displayData.lastReviewedDateStr}</span>
-                          {problem.dateSolved && <span>Solved: {new Date(problem.dateSolved).toLocaleDateString()}</span>}
+                          {problem.dateSolved && <span>Solved: new Date(problem.dateSolved).toLocaleDateString()</span>}
                       </div>
                   </div>
                   {/* Delete Button */}
@@ -466,9 +467,9 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                 <AccordionTrigger className="py-2 px-3 bg-muted hover:bg-muted/90 rounded-t-md text-sm font-medium text-foreground/80 data-[state=open]:rounded-b-none">
                                   <span className="flex items-center gap-1"><Code className="h-4 w-4"/>Show Code</span>
                                 </AccordionTrigger>
-                                <AccordionContent className="border border-t-0 border-border rounded-b-md bg-muted/50 p-0">
-                                    {/* Use pre and code tags for semantic meaning. Add styling for code block appearance */}
-                                    <pre className="p-3 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono shadow-inner rounded-b-md m-0 bg-transparent border-none">
+                                <AccordionContent className="border border-t-0 border-muted rounded-b-md bg-background p-0 shadow-inner">
+                                    {/* Notion-like code block styling */}
+                                    <pre className="p-4 text-sm whitespace-pre-wrap break-words max-h-60 overflow-y-auto font-mono bg-muted/30 rounded-b-md m-0 border-none">
                                         <code className="block">{problem.code}</code>
                                     </pre>
                                 </AccordionContent>
@@ -527,6 +528,3 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
         </Card>
     );
 }
-
-
-    

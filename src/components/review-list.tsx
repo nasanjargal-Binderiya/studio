@@ -36,7 +36,7 @@ import { format, isValid } from 'date-fns'; // Import isValid
 import ReactMarkdown from 'react-markdown'; // Import react-markdown
 import remarkGfm from 'remark-gfm'; // Import remark-gfm for GitHub Flavored Markdown (code blocks)
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'; // Import SyntaxHighlighter
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Import a style (e.g., atomDark)
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'; // Import a dark style (e.g., vscDarkPlus)
 import { cn } from "@/lib/utils"; // Import cn utility
 
 
@@ -494,12 +494,12 @@ function ProblemCard({ problem, onReview, onDelete, isDue }: ProblemCardProps) {
                                      {/* Use SyntaxHighlighter for code block styling */}
                                      <SyntaxHighlighter
                                         language="python" // Assuming python, adjust as needed or detect dynamically
-                                        style={atomDark} // Use a desired theme
+                                        style={vscDarkPlus} // Use vscDarkPlus theme
                                         customStyle={{
                                             margin: 0,
                                             padding: '1rem', // Add padding
                                             borderRadius: '0 0 0.5rem 0.5rem', // Round bottom corners
-                                            backgroundColor: 'hsl(var(--muted))', // Match prose pre bg
+                                            // Removed background color override to use theme's default
                                             fontSize: '0.875em', // Match prose pre font size
                                             maxHeight: '15rem', // Limit height and make scrollable
                                             overflowY: 'auto',
